@@ -6,12 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useAuth } from "@/lib/auth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth, useStore } from "@/lib/auth";
 import { read, write } from "@/lib/storage";
 import type { User } from "@/lib/types";
 
 export default function StudentProfile() {
   const { user, refresh } = useAuth();
+  const classes = useStore<string[]>("classes", []);
   const [name, setName] = useState(user?.name ?? "");
   const [kelas, setKelas] = useState(user?.kelas ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
@@ -113,12 +121,25 @@ export default function StudentProfile() {
           </div>
           <div>
             <Label>Kelas</Label>
-            <Input
-              value={kelas}
-              onChange={(e) => setKelas(e.target.value)}
-              placeholder="contoh: 10 IPA 1"
-              data-testid="input-profile-kelas"
-            />
+            <Select
+              value={kelas || "__none__"}
+              onValueChange={(v) => setKelas(v === "__none__" ? "" : v)}
+            >
+              <SelectTrigger data-testid="select-profile-kelas">
+                <SelectValue placeholder="Pilih kelas kamu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Belum dipilih —</SelectItem>
+                {classes.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Hubungi guru jika kelas kamu belum tersedia di daftar.
+            </p>
           </div>
           <div>
             <Label>Nomor HP</Label>

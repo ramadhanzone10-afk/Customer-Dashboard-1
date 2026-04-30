@@ -5,7 +5,30 @@ const SEED_KEY = "mathclub:v1:seeded";
 
 export function ensureSeed() {
   if (typeof window === "undefined") return;
-  if (window.localStorage.getItem(SEED_KEY) === "true") return;
+  if (window.localStorage.getItem(SEED_KEY) === "true") {
+    // Migration: ensure classes list exists for users seeded before
+    const existing = read("classes", []);
+    if (existing.length === 0) {
+      const defaults = [
+        "10 IPA 1",
+        "10 IPA 2",
+        "11 IPA 1",
+        "11 IPA 2",
+        "12 IPA 1",
+        "12 IPA 2",
+      ];
+      const fromUsers = Array.from(
+        new Set(
+          read("users", [])
+            .map((u) => u.kelas)
+            .filter((k): k is string => !!k && k.trim().length > 0),
+        ),
+      );
+      const merged = Array.from(new Set([...defaults, ...fromUsers]));
+      write("classes", merged);
+    }
+    return;
+  }
 
   const teacher: User = {
     id: "u_teacher",
@@ -229,6 +252,15 @@ export function ensureSeed() {
     read: false,
   });
 
+  const classes = [
+    "10 IPA 1",
+    "10 IPA 2",
+    "11 IPA 1",
+    "11 IPA 2",
+    "12 IPA 1",
+    "12 IPA 2",
+  ];
+
   write("users", users);
   write("materials", materials);
   write("materialProgress", []);
@@ -237,6 +269,7 @@ export function ensureSeed() {
   write("payments", payments);
   write("notifications", notifications);
   write("session", null);
+  write("classes", classes);
 
   // Initial unread teacher notification
   const teacherNotif: AppNotification[] = read("notifications", []);

@@ -19,6 +19,7 @@ type StoreMap = {
   payments: Payment[];
   notifications: AppNotification[];
   session: { userId: string } | null;
+  classes: string[];
 };
 
 type Listener = () => void;

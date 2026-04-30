@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
-import { Search, UserPlus, Phone, GraduationCap, Trash2 } from "lucide-react";
+import {
+  Search,
+  UserPlus,
+  Phone,
+  GraduationCap,
+  Trash2,
+  Settings,
+  Plus,
+  X,
+  Users,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type {
@@ -36,28 +53,56 @@ const AVATAR_COLORS = [
   "#14b8a6",
 ];
 
+const NO_KELAS = "__no_kelas__";
+
 export default function TeacherStudents() {
   const users = useStore<User[]>("users", []);
+  const classes = useStore<string[]>("classes", []);
   const materials = useStore<Material[]>("materials", []);
   const progress = useStore<MaterialProgress[]>("materialProgress", []);
   const exams = useStore<Exam[]>("exams", []);
   const submissions = useStore<ExamSubmission[]>("examSubmissions", []);
   const [search, setSearch] = useState("");
+  const [classFilter, setClassFilter] = useState<string>("all");
   const [selected, setSelected] = useState<User | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [classMgrOpen, setClassMgrOpen] = useState(false);
 
-  const students = useMemo(
+  const allStudents = useMemo(
+    () => users.filter((u) => u.role === "student"),
+    [users],
+  );
+
+  const filteredStudents = useMemo(
     () =>
-      users
-        .filter((u) => u.role === "student")
+      allStudents
         .filter((u) =>
           search
             ? u.name.toLowerCase().includes(search.toLowerCase()) ||
               (u.kelas ?? "").toLowerCase().includes(search.toLowerCase())
             : true,
+        )
+        .filter((u) =>
+          classFilter === "all"
+            ? true
+            : classFilter === NO_KELAS
+              ? !u.kelas
+              : u.kelas === classFilter,
         ),
-    [users, search],
+    [allStudents, search, classFilter],
   );
+
+  // Group filtered students by class
+  const grouped = useMemo(() => {
+    const map = new Map<string, User[]>();
+    for (const c of classes) map.set(c, []);
+    for (const s of filteredStudents) {
+      const k = s.kelas && classes.includes(s.kelas) ? s.kelas : NO_KELAS;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).filter(([, list]) => list.length > 0);
+  }, [filteredStudents, classes]);
 
   function studentStats(uid: string) {
     const assignedMats = materials.filter((m) => m.assignedTo.includes(uid));
@@ -129,91 +174,131 @@ export default function TeacherStudents() {
         <div className="relative flex-1 max-w-md min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cari siswa atau kelas..."
+            placeholder="Cari nama atau kelas..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
             data-testid="input-search-students"
           />
         </div>
-        <Badge variant="secondary">{students.length} siswa</Badge>
+        <Select value={classFilter} onValueChange={setClassFilter}>
+          <SelectTrigger className="w-[180px]" data-testid="select-class-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua kelas</SelectItem>
+            {classes.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+            <SelectItem value={NO_KELAS}>Tanpa kelas</SelectItem>
+          </SelectContent>
+        </Select>
+        <Badge variant="secondary">{filteredStudents.length} siswa</Badge>
         <div className="flex-1" />
+        <Button
+          variant="outline"
+          onClick={() => setClassMgrOpen(true)}
+          data-testid="button-manage-classes"
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Kelola Kelas
+        </Button>
         <Button onClick={() => setAddOpen(true)} data-testid="button-add-student">
           <UserPlus className="h-4 w-4 mr-2" />
           Tambah Siswa
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {students.map((s) => {
-          const st = studentStats(s.id);
-          return (
-            <Card
-              key={s.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setSelected(s)}
-              data-testid={`student-card-${s.id}`}
-            >
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold"
-                    style={{ background: s.avatarColor ?? "#6366f1" }}
+      {grouped.length === 0 && (
+        <div className="text-center text-sm text-muted-foreground py-12 border rounded-lg">
+          Belum ada siswa yang cocok. Klik "Tambah Siswa" untuk menambahkan.
+        </div>
+      )}
+
+      <div className="space-y-8">
+        {grouped.map(([className, list]) => (
+          <section key={className}>
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-base font-semibold">
+                {className === NO_KELAS ? "Tanpa Kelas" : `Kelas ${className}`}
+              </h2>
+              <Badge variant="outline">{list.length}</Badge>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {list.map((s) => {
+                const st = studentStats(s.id);
+                return (
+                  <Card
+                    key={s.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setSelected(s)}
+                    data-testid={`student-card-${s.id}`}
                   >
-                    {s.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{s.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{s.email}</div>
-                  </div>
-                </div>
-                {(s.kelas || s.phone) && (
-                  <div className="flex flex-wrap gap-2 mb-3 text-xs">
-                    {s.kelas && (
-                      <Badge variant="outline" className="gap-1">
-                        <GraduationCap className="h-3 w-3" />
-                        {s.kelas}
-                      </Badge>
-                    )}
-                    {s.phone && (
-                      <Badge variant="outline" className="gap-1">
-                        <Phone className="h-3 w-3" />
-                        {s.phone}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Materi selesai</span>
-                      <span className="font-medium">{st.matPct}%</span>
-                    </div>
-                    <Progress value={st.matPct} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Ujian dikerjakan</span>
-                      <span className="font-medium">{st.examPct}%</span>
-                    </div>
-                    <Progress value={st.examPct} className="h-2" />
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">Rata-rata nilai</span>
-                    <Badge variant={st.avg && st.avg >= 70 ? "default" : "secondary"}>
-                      {st.avg !== null ? `${st.avg}/100` : "-"}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-        {students.length === 0 && (
-          <div className="col-span-full text-center text-sm text-muted-foreground py-12">
-            Belum ada siswa. Klik "Tambah Siswa" untuk menambahkan.
-          </div>
-        )}
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div
+                          className="h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold"
+                          style={{ background: s.avatarColor ?? "#6366f1" }}
+                        >
+                          {s.name.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold truncate">{s.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {s.email}
+                          </div>
+                        </div>
+                      </div>
+                      {(s.kelas || s.phone) && (
+                        <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                          {s.kelas && (
+                            <Badge variant="outline" className="gap-1">
+                              <GraduationCap className="h-3 w-3" />
+                              {s.kelas}
+                            </Badge>
+                          )}
+                          {s.phone && (
+                            <Badge variant="outline" className="gap-1">
+                              <Phone className="h-3 w-3" />
+                              {s.phone}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Materi selesai</span>
+                            <span className="font-medium">{st.matPct}%</span>
+                          </div>
+                          <Progress value={st.matPct} className="h-2" />
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Ujian dikerjakan</span>
+                            <span className="font-medium">{st.examPct}%</span>
+                          </div>
+                          <Progress value={st.examPct} className="h-2" />
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">
+                            Rata-rata nilai
+                          </span>
+                          <Badge variant={st.avg && st.avg >= 70 ? "default" : "secondary"}>
+                            {st.avg !== null ? `${st.avg}/100` : "-"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
@@ -333,7 +418,17 @@ export default function TeacherStudents() {
         </DialogContent>
       </Dialog>
 
-      <AddStudentDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddStudentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        classes={classes}
+      />
+      <ClassManagerDialog
+        open={classMgrOpen}
+        onOpenChange={setClassMgrOpen}
+        classes={classes}
+        students={allStudents}
+      />
     </div>
   );
 }
@@ -341,9 +436,11 @@ export default function TeacherStudents() {
 function AddStudentDialog({
   open,
   onOpenChange,
+  classes,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  classes: string[];
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -469,12 +566,22 @@ function AddStudentDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Kelas</Label>
-              <Input
-                value={kelas}
-                onChange={(e) => setKelas(e.target.value)}
-                placeholder="contoh: 10 IPA 1"
-                data-testid="input-new-student-kelas"
-              />
+              <Select
+                value={kelas || "__none__"}
+                onValueChange={(v) => setKelas(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger data-testid="select-new-student-kelas">
+                  <SelectValue placeholder="Pilih kelas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tanpa kelas —</SelectItem>
+                  {classes.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Nomor HP</Label>
@@ -524,6 +631,110 @@ function AddStudentDialog({
             <UserPlus className="h-4 w-4 mr-2" />
             Tambah Siswa
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ClassManagerDialog({
+  open,
+  onOpenChange,
+  classes,
+  students,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  classes: string[];
+  students: User[];
+}) {
+  const [newClass, setNewClass] = useState("");
+
+  function addClass() {
+    const name = newClass.trim();
+    if (!name) return;
+    if (classes.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      return alert("Kelas dengan nama itu sudah ada.");
+    }
+    write("classes", [...classes, name]);
+    setNewClass("");
+  }
+
+  function removeClass(name: string) {
+    const inUse = students.filter((s) => s.kelas === name).length;
+    const msg =
+      inUse > 0
+        ? `Kelas "${name}" digunakan oleh ${inUse} siswa. Hapus tetap? Siswa akan menjadi tanpa kelas.`
+        : `Hapus kelas "${name}"?`;
+    if (!confirm(msg)) return;
+    write(
+      "classes",
+      classes.filter((c) => c !== name),
+    );
+    if (inUse > 0) {
+      const all = read("users", []);
+      write(
+        "users",
+        all.map((u) => (u.kelas === name ? { ...u, kelas: undefined } : u)),
+      );
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Kelola Daftar Kelas</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              value={newClass}
+              onChange={(e) => setNewClass(e.target.value)}
+              placeholder="Nama kelas baru, mis. 10 IPS 1"
+              onKeyDown={(e) => e.key === "Enter" && addClass()}
+              data-testid="input-new-class"
+            />
+            <Button onClick={addClass} data-testid="button-add-class">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="border rounded-md divide-y max-h-80 overflow-y-auto">
+            {classes.length === 0 && (
+              <div className="p-4 text-sm text-muted-foreground text-center">
+                Belum ada kelas. Tambahkan satu di atas.
+              </div>
+            )}
+            {classes.map((c) => {
+              const count = students.filter((s) => s.kelas === c).length;
+              return (
+                <div
+                  key={c}
+                  className="flex items-center justify-between px-3 py-2 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{c}</span>
+                    <Badge variant="outline" className="ml-1">
+                      {count} siswa
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeClass(c)}
+                    data-testid={`button-remove-class-${c}`}
+                    className="h-7 w-7"
+                  >
+                    <X className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Selesai</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
