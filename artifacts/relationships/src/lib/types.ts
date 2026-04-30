@@ -7,6 +7,8 @@ export interface User {
   name: string;
   role: Role;
   avatarColor?: string;
+  kelas?: string;
+  phone?: string;
 }
 
 export interface Material {

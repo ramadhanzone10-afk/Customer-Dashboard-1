@@ -24,6 +24,8 @@ export function ensureSeed() {
       name: "Andi Pratama",
       role: "student",
       avatarColor: "#10b981",
+      kelas: "10 IPA 1",
+      phone: "081234567890",
     },
     {
       id: "u_siti",
@@ -32,6 +34,8 @@ export function ensureSeed() {
       name: "Siti Nurhaliza",
       role: "student",
       avatarColor: "#f59e0b",
+      kelas: "11 IPA 2",
+      phone: "081298765432",
     },
     {
       id: "u_rudi",
@@ -40,6 +44,8 @@ export function ensureSeed() {
       name: "Rudi Hartono",
       role: "student",
       avatarColor: "#ec4899",
+      kelas: "12 IPA 1",
+      phone: "081345678910",
     },
   ];
 

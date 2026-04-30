@@ -12,6 +12,7 @@ import {
   Bell,
   Menu,
   X,
+  User as UserIcon,
 } from "lucide-react";
 import { useAuth, useStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -250,6 +251,14 @@ export function Layout({ children }: { children: ReactNode }) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {user.role === "student" && (
+                    <DropdownMenuItem asChild data-testid="menu-profile">
+                      <Link href="/student/profile">
+                        <UserIcon className="h-4 w-4 mr-2" />
+                        Edit Profil
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onClick={logout}
                     data-testid="menu-logout"

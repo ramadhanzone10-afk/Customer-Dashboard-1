@@ -24,6 +24,7 @@ import StudentTakeExam from "@/pages/student/take-exam";
 import StudentExamResult from "@/pages/student/exam-result";
 import StudentProgress from "@/pages/student/progress";
 import StudentPayments from "@/pages/student/payments";
+import StudentProfile from "@/pages/student/profile";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ function Router() {
       <Route path="/student/exams/:id/result" component={() => <Protected role="student"><StudentExamResult /></Protected>} />
       <Route path="/student/progress" component={() => <Protected role="student"><StudentProgress /></Protected>} />
       <Route path="/student/payments" component={() => <Protected role="student"><StudentPayments /></Protected>} />
+      <Route path="/student/profile" component={() => <Protected role="student"><StudentProfile /></Protected>} />
 
       <Route path="/" component={RootRedirect} />
       <Route component={NotFound} />

@@ -6,6 +6,7 @@ interface AuthContextValue {
   user: User | null;
   login: (email: string, password: string) => { ok: boolean; error?: string };
   logout: () => void;
+  refresh: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -52,8 +53,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refresh = useCallback(() => {
+    const session = read("session", null);
+    if (!session) {
+      setUser(null);
+      return;
+    }
+    const users = read("users", []);
+    setUser(users.find((u) => u.id === session.userId) ?? null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, login, logout, refresh }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 
