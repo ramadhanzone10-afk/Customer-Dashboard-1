@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import logoUrl from "@assets/Logo_MathCourse_1777550046532.png";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -40,13 +41,15 @@ export default function LoginPage() {
       <div className="grid md:grid-cols-2 gap-8 max-w-5xl w-full">
         {/* Hero panel */}
         <div className="hidden md:flex flex-col justify-center p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-12 w-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
-              <GraduationCap className="h-7 w-7" />
-            </div>
-            <div>
-              <div className="text-3xl font-bold">MathClub</div>
-              <div className="text-sm text-muted-foreground">Bimbel Online Modern</div>
+          <div className="mb-6">
+            <img
+              src={logoUrl}
+              alt="MathCourse"
+              className="h-20 w-auto object-contain"
+              data-testid="img-logo-hero"
+            />
+            <div className="text-sm text-muted-foreground mt-1 ml-1">
+              Bimbel Online Modern
             </div>
           </div>
           <h1 className="text-4xl font-bold leading-tight mb-4">
@@ -77,14 +80,13 @@ export default function LoginPage() {
         {/* Login form */}
         <Card className="shadow-lg">
           <CardContent className="p-6 md:p-8">
-            <div className="md:hidden flex items-center gap-2 mb-6">
-              <div className="h-10 w-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-                <GraduationCap className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="font-bold text-xl">MathClub</div>
-                <div className="text-xs text-muted-foreground">Bimbel Online</div>
-              </div>
+            <div className="md:hidden flex flex-col items-start mb-6">
+              <img
+                src={logoUrl}
+                alt="MathCourse"
+                className="h-14 w-auto object-contain"
+                data-testid="img-logo-mobile"
+              />
             </div>
             <h2 className="text-2xl font-bold mb-1">Selamat datang</h2>
             <p className="text-sm text-muted-foreground mb-6">

@@ -30,6 +30,7 @@ import { write, read } from "@/lib/storage";
 import type { AppNotification } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
+import logoUrl from "@assets/Logo_MathCourse_1777550046532.png";
 
 interface NavItem {
   path: string;
@@ -107,15 +108,15 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background flex">
       {/* Sidebar desktop */}
       <aside className="hidden md:flex w-64 flex-col border-r bg-card">
-        <div className="flex items-center gap-2 px-5 py-5 border-b">
-          <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-            <GraduationCap className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="font-bold text-base leading-tight">MathClub</div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
-              {user.role === "teacher" ? "Panel Guru" : "Panel Siswa"}
-            </div>
+        <div className="flex flex-col items-start gap-1 px-5 py-4 border-b">
+          <img
+            src={logoUrl}
+            alt="MathCourse"
+            className="h-12 w-auto object-contain"
+            data-testid="img-logo-sidebar"
+          />
+          <div className="text-[11px] text-muted-foreground uppercase tracking-wide ml-1">
+            {user.role === "teacher" ? "Panel Guru" : "Panel Siswa"}
           </div>
         </div>
         <NavLinks />
@@ -143,13 +144,13 @@ export function Layout({ children }: { children: ReactNode }) {
             onClick={() => setMobileOpen(false)}
           />
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r flex flex-col">
-            <div className="flex items-center justify-between px-5 py-5 border-b">
-              <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5" />
-                </div>
-                <div className="font-bold">MathClub</div>
-              </div>
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <img
+                src={logoUrl}
+                alt="MathCourse"
+                className="h-10 w-auto object-contain"
+                data-testid="img-logo-mobile-sidebar"
+              />
               <Button
                 variant="ghost"
                 size="icon"
