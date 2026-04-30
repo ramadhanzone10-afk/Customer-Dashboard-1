@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Wallet, Upload, CheckCircle2, Clock, XCircle, FileImage, Copy } from "lucide-react";
+import { Wallet, Upload, CheckCircle2, Clock, XCircle, FileImage, Copy, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,9 +33,41 @@ export default function StudentPayments() {
 
   const totalPaid = myPayments.filter((p) => p.status === "paid").length;
   const totalDue = myPayments.filter((p) => p.status === "unpaid").length;
+  const unpaidList = useMemo(
+    () => myPayments.filter((p) => p.status === "unpaid"),
+    [myPayments],
+  );
+  const totalDueAmount = unpaidList.reduce((acc, p) => acc + p.amount, 0);
 
   return (
     <div className="space-y-6">
+      {unpaidList.length > 0 && (
+        <Alert variant="destructive" data-testid="alert-unpaid">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold">
+                  Kamu memiliki {unpaidList.length} tagihan belum dibayar
+                </div>
+                <div className="text-xs mt-0.5 opacity-90">
+                  Total: {formatCurrency(totalDueAmount)} · Periode:{" "}
+                  {unpaidList.map((p) => formatMonth(p.month)).join(", ")}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setPaying(unpaidList[0])}
+                data-testid="button-pay-now-banner"
+              >
+                <Wallet className="h-3 w-3 mr-1" />
+                Bayar Sekarang
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-5">
