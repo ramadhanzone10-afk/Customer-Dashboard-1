@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Relationship Tracker"
+title = "MathClub"
 version = "1.0.0"
 id = "artifacts/relationships"
 router = "path"

@@ -1,68 +1,90 @@
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
-import Dashboard from "@/pages/dashboard";
-import Pipeline from "@/pages/pipeline";
-import Contacts from "@/pages/contacts";
-import ContactDetail from "@/pages/contact-detail";
-import Settings from "@/pages/settings";
-import Onboarding from "@/pages/onboarding";
 import { Layout } from "@/components/layout";
-import { useGetWorkspace } from "@workspace/api-client-react";
-import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { ensureSeed } from "@/lib/seed";
+import LoginPage from "@/pages/login";
+import NotFound from "@/pages/not-found";
+
+import TeacherDashboard from "@/pages/teacher/dashboard";
+import TeacherStudents from "@/pages/teacher/students";
+import TeacherMaterials from "@/pages/teacher/materials";
+import TeacherExams from "@/pages/teacher/exams";
+import TeacherExamResults from "@/pages/teacher/exam-results";
+import TeacherPayments from "@/pages/teacher/payments";
+
+import StudentDashboard from "@/pages/student/dashboard";
+import StudentMaterials from "@/pages/student/materials";
+import StudentMaterialView from "@/pages/student/material-view";
+import StudentExams from "@/pages/student/exams";
+import StudentTakeExam from "@/pages/student/take-exam";
+import StudentExamResult from "@/pages/student/exam-result";
+import StudentProgress from "@/pages/student/progress";
+import StudentPayments from "@/pages/student/payments";
 
 const queryClient = new QueryClient();
 
-function GuardedRoute({ component: Component }: { component: React.ComponentType<any> }) {
-  const { data: workspace, isLoading } = useGetWorkspace();
+function Protected({ role, children }: { role: "teacher" | "student"; children: React.ReactNode }) {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
-
   useEffect(() => {
-    if (!isLoading && workspace && !workspace.initialized) {
-      setLocation("/onboarding");
-    }
-  }, [isLoading, workspace, setLocation]);
+    if (!user) setLocation("/login");
+    else if (user.role !== role) setLocation(user.role === "teacher" ? "/teacher" : "/student");
+  }, [user, role, setLocation]);
+  if (!user || user.role !== role) return null;
+  return <Layout>{children}</Layout>;
+}
 
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>;
-  }
-
-  if (workspace && !workspace.initialized) {
-    return null; // Will redirect via useEffect
-  }
-
-  return (
-    <Layout>
-      <Component />
-    </Layout>
-  );
+function RootRedirect() {
+  const { user } = useAuth();
+  if (!user) return <Redirect to="/login" />;
+  return <Redirect to={user.role === "teacher" ? "/teacher" : "/student"} />;
 }
 
 function Router() {
   return (
     <Switch>
-      <Route path="/onboarding" component={Onboarding} />
-      <Route path="/" component={() => <GuardedRoute component={Dashboard} />} />
-      <Route path="/pipeline" component={() => <GuardedRoute component={Pipeline} />} />
-      <Route path="/contacts" component={() => <GuardedRoute component={Contacts} />} />
-      <Route path="/contacts/:id" component={() => <GuardedRoute component={ContactDetail} />} />
-      <Route path="/settings" component={() => <GuardedRoute component={Settings} />} />
-      <Route component={() => <GuardedRoute component={NotFound} />} />
+      <Route path="/login" component={LoginPage} />
+
+      <Route path="/teacher" component={() => <Protected role="teacher"><TeacherDashboard /></Protected>} />
+      <Route path="/teacher/students" component={() => <Protected role="teacher"><TeacherStudents /></Protected>} />
+      <Route path="/teacher/materials" component={() => <Protected role="teacher"><TeacherMaterials /></Protected>} />
+      <Route path="/teacher/exams" component={() => <Protected role="teacher"><TeacherExams /></Protected>} />
+      <Route path="/teacher/exams/:id/results" component={() => <Protected role="teacher"><TeacherExamResults /></Protected>} />
+      <Route path="/teacher/payments" component={() => <Protected role="teacher"><TeacherPayments /></Protected>} />
+
+      <Route path="/student" component={() => <Protected role="student"><StudentDashboard /></Protected>} />
+      <Route path="/student/materials" component={() => <Protected role="student"><StudentMaterials /></Protected>} />
+      <Route path="/student/materials/:id" component={() => <Protected role="student"><StudentMaterialView /></Protected>} />
+      <Route path="/student/exams" component={() => <Protected role="student"><StudentExams /></Protected>} />
+      <Route path="/student/exams/:id" component={() => <Protected role="student"><StudentTakeExam /></Protected>} />
+      <Route path="/student/exams/:id/result" component={() => <Protected role="student"><StudentExamResult /></Protected>} />
+      <Route path="/student/progress" component={() => <Protected role="student"><StudentProgress /></Protected>} />
+      <Route path="/student/payments" component={() => <Protected role="student"><StudentPayments /></Protected>} />
+
+      <Route path="/" component={RootRedirect} />
+      <Route component={NotFound} />
     </Switch>
   );
 }
 
 function App() {
+  useEffect(() => {
+    ensureSeed();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
+        <AuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
