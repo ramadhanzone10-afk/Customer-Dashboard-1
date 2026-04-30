@@ -90,6 +90,14 @@ export interface Payment {
   notes?: string;
 }
 
+export interface ClassMessage {
+  id: string;
+  kelas: string;
+  userId: string;
+  text: string;
+  createdAt: number;
+}
+
 export type NotificationType =
   | "new_material"
   | "new_exam"

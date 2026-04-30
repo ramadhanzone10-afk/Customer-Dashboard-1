@@ -6,6 +6,7 @@ import type {
   ExamSubmission,
   Payment,
   AppNotification,
+  ClassMessage,
 } from "./types";
 
 const PREFIX = "mathclub:v1:";
@@ -20,6 +21,7 @@ type StoreMap = {
   notifications: AppNotification[];
   session: { userId: string } | null;
   classes: string[];
+  classMessages: ClassMessage[];
 };
 
 type Listener = () => void;

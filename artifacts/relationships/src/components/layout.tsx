@@ -48,6 +48,7 @@ const teacherNav: NavItem[] = [
 
 const studentNav: NavItem[] = [
   { path: "/student", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/student/class", label: "Kelas", icon: Users },
   { path: "/student/materials", label: "Materi", icon: BookOpen },
   { path: "/student/exams", label: "Ujian", icon: ClipboardList },
   { path: "/student/progress", label: "Progres", icon: TrendingUp },
