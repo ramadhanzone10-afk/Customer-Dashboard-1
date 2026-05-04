@@ -28,14 +28,6 @@ export default function LoginPage() {
     setLocation("/");
   }
 
-  function quickLogin(email: string, password: string) {
-    setEmail(email);
-    setPassword(password);
-    const result = login(email, password);
-    if (!result.ok) setError(result.error ?? "Login gagal");
-    else setLocation("/");
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-background to-purple-50 dark:from-indigo-950 dark:via-background dark:to-purple-950 flex items-center justify-center p-4">
       <div className="grid md:grid-cols-2 gap-8 max-w-5xl w-full">
@@ -127,35 +119,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 pt-6 border-t">
-              <div className="text-xs text-muted-foreground mb-3 font-medium">
-                Akun demo (klik untuk login cepat):
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-col h-auto py-2"
-                  onClick={() => quickLogin("guru@mathclub.id", "guru123")}
-                  data-testid="button-demo-teacher"
-                >
-                  <span className="font-semibold">Login Guru</span>
-                  <span className="text-[10px] text-muted-foreground">Pak Budi</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-col h-auto py-2"
-                  onClick={() => quickLogin("andi@mathclub.id", "siswa123")}
-                  data-testid="button-demo-student"
-                >
-                  <span className="font-semibold">Login Siswa</span>
-                  <span className="text-[10px] text-muted-foreground">Andi</span>
-                </Button>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
