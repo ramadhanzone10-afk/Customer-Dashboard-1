@@ -9,6 +9,10 @@ import {
   Plus,
   X,
   Users,
+  FileSpreadsheet,
+  Download,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,6 +71,7 @@ export default function TeacherStudents() {
   const [selected, setSelected] = useState<User | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [classMgrOpen, setClassMgrOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const allStudents = useMemo(
     () => users.filter((u) => u.role === "student"),
@@ -204,6 +209,14 @@ export default function TeacherStudents() {
         >
           <Settings className="h-4 w-4 mr-2" />
           Kelola Kelas
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setImportOpen(true)}
+          data-testid="button-import-excel"
+        >
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          Import Excel
         </Button>
         <Button onClick={() => setAddOpen(true)} data-testid="button-add-student">
           <UserPlus className="h-4 w-4 mr-2" />
@@ -428,6 +441,11 @@ export default function TeacherStudents() {
         onOpenChange={setClassMgrOpen}
         classes={classes}
         students={allStudents}
+      />
+      <ImportExcelDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        classes={classes}
       />
     </div>
   );
@@ -736,6 +754,287 @@ function ClassManagerDialog({
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>Selesai</Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ImportRow {
+  nama: string;
+  kelas: string;
+  hp: string;
+  email: string;
+  status: "ok" | "duplicate" | "no_name";
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, ".")
+    .replace(/[^a-z0-9.]/g, "");
+}
+
+function generateEmail(name: string, existing: string[]): string {
+  const base = slugify(name) || "siswa";
+  let email = `${base}@mathclub.id`;
+  let i = 2;
+  while (existing.includes(email)) {
+    email = `${base}${i}@mathclub.id`;
+    i++;
+  }
+  return email;
+}
+
+function downloadTemplate() {
+  const rows = [
+    ["nama", "kelas", "hp"],
+    ["Budi Santoso", "X-1", "081234567890"],
+    ["Siti Rahayu", "X-2", "081298765432"],
+  ];
+  const csv = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "template_siswa.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ImportExcelDialog({
+  open,
+  onOpenChange,
+  classes,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  classes: string[];
+}) {
+  const [rows, setRows] = useState<ImportRow[]>([]);
+  const [done, setDone] = useState(false);
+  const [enrollAll, setEnrollAll] = useState(true);
+
+  function reset() {
+    setRows([]);
+    setDone(false);
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const { read: xlsxRead, utils } = await import("xlsx");
+    const buffer = await file.arrayBuffer();
+    const wb = xlsxRead(buffer, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw: Record<string, string>[] = utils.sheet_to_json(ws, {
+      defval: "",
+      raw: false,
+    });
+
+    const existingEmails = read("users", []).map((u) => u.email.toLowerCase());
+    const usedInBatch: string[] = [];
+
+    const parsed: ImportRow[] = raw.map((r) => {
+      const nama = String(
+        r["nama"] ?? r["Nama"] ?? r["NAMA"] ?? r["name"] ?? "",
+      ).trim();
+      const kelas = String(
+        r["kelas"] ?? r["Kelas"] ?? r["KELAS"] ?? r["class"] ?? "",
+      ).trim();
+      const hp = String(
+        r["hp"] ?? r["HP"] ?? r["phone"] ?? r["Phone"] ?? r["nomor hp"] ?? r["Nomor HP"] ?? "",
+      ).trim();
+
+      if (!nama) return { nama, kelas, hp, email: "", status: "no_name" as const };
+
+      const email = generateEmail(nama, [...existingEmails, ...usedInBatch]);
+      usedInBatch.push(email);
+      const isDup = existingEmails.includes(email);
+      return { nama, kelas, hp, email, status: isDup ? "duplicate" as const : "ok" as const };
+    });
+
+    setRows(parsed);
+    e.target.value = "";
+  }
+
+  function importAll() {
+    const valid = rows.filter((r) => r.status === "ok" && r.nama);
+    if (valid.length === 0) { alert("Tidak ada data valid untuk diimpor."); return; }
+
+    const allUsers = read("users", []);
+    const month = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    })();
+
+    const newStudents: User[] = valid.map((r) => ({
+      id: uid("u_"),
+      name: r.nama,
+      email: r.email,
+      password: "siswa123",
+      role: "student" as const,
+      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+      kelas: r.kelas || undefined,
+      phone: r.hp || undefined,
+    }));
+
+    write("users", [...allUsers, ...newStudents]);
+
+    const payments: Payment[] = read("payments", []);
+    write("payments", [
+      ...payments,
+      ...newStudents.map((s) => ({
+        id: uid("p_"),
+        userId: s.id,
+        month,
+        amount: 350000,
+        status: "unpaid" as const,
+      })),
+    ]);
+
+    if (enrollAll) {
+      const mats: Material[] = read("materials", []);
+      write("materials", mats.map((m) => ({
+        ...m,
+        assignedTo: [...m.assignedTo, ...newStudents.map((s) => s.id)],
+      })));
+      const exs: Exam[] = read("exams", []);
+      write("exams", exs.map((e) =>
+        e.deadline > Date.now()
+          ? { ...e, assignedTo: [...e.assignedTo, ...newStudents.map((s) => s.id)] }
+          : e,
+      ));
+    }
+
+    setDone(true);
+  }
+
+  const validCount = rows.filter((r) => r.status === "ok").length;
+  const skipCount = rows.length - validCount;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Import Siswa dari Excel / CSV
+          </DialogTitle>
+        </DialogHeader>
+
+        {done ? (
+          <div className="text-center py-8 space-y-2">
+            <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto" />
+            <div className="font-semibold text-lg">
+              {validCount} siswa berhasil diimpor!
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Password default semua siswa: <code className="font-mono bg-muted px-1 rounded">siswa123</code>
+            </div>
+            <Button className="mt-4" onClick={() => { reset(); onOpenChange(false); }}>
+              Selesai
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-muted rounded-lg p-4 text-sm space-y-2">
+              <p className="font-medium">Format file yang dibutuhkan:</p>
+              <p className="text-muted-foreground">
+                File Excel (.xlsx, .xls) atau CSV dengan kolom:
+                <code className="mx-1 bg-background px-1 rounded border">nama</code>
+                <code className="mx-1 bg-background px-1 rounded border">kelas</code>
+                <code className="mx-1 bg-background px-1 rounded border">hp</code>
+              </p>
+              <Button size="sm" variant="outline" onClick={downloadTemplate}>
+                <Download className="h-3 w-3 mr-1" />
+                Download Template CSV
+              </Button>
+            </div>
+
+            <div>
+              <Label>Pilih file Excel atau CSV</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={onFile}
+                className="mt-1"
+                data-testid="input-import-file"
+              />
+            </div>
+
+            {rows.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-sm flex-wrap">
+                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {validCount} siap diimpor
+                  </span>
+                  {skipCount > 0 && (
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <AlertTriangle className="h-4 w-4" />
+                      {skipCount} dilewati
+                    </span>
+                  )}
+                </div>
+
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Nama</th>
+                        <th className="text-left p-2 font-medium">Kelas</th>
+                        <th className="text-left p-2 font-medium">HP</th>
+                        <th className="text-left p-2 font-medium">Email (otomatis)</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {rows.map((r, i) => (
+                        <tr key={i} className={r.status !== "ok" ? "bg-amber-50 dark:bg-amber-950/20" : ""}>
+                          <td className="p-2">{r.nama || <span className="text-muted-foreground italic">kosong</span>}</td>
+                          <td className="p-2 text-muted-foreground">{r.kelas || "-"}</td>
+                          <td className="p-2 text-muted-foreground">{r.hp || "-"}</td>
+                          <td className="p-2 font-mono text-xs">{r.email || "-"}</td>
+                          <td className="p-2">
+                            {r.status === "ok" && <Badge className="text-xs">OK</Badge>}
+                            {r.status === "duplicate" && <Badge variant="secondary" className="text-xs">Duplikat</Badge>}
+                            {r.status === "no_name" && <Badge variant="destructive" className="text-xs">Nama kosong</Badge>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={enrollAll}
+                    onChange={(e) => setEnrollAll(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Daftarkan ke semua materi & ujian aktif
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!done && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }}>
+              Batal
+            </Button>
+            {rows.length > 0 && validCount > 0 && (
+              <Button onClick={importAll} data-testid="button-confirm-import">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Import {validCount} Siswa
+              </Button>
+            )}
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
