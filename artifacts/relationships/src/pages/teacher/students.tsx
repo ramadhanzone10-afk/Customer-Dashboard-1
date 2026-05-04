@@ -789,9 +789,9 @@ function generateEmail(name: string, existing: string[]): string {
 
 function downloadTemplate() {
   const rows = [
-    ["nama", "kelas", "hp"],
-    ["Budi Santoso", "X-1", "081234567890"],
-    ["Siti Rahayu", "X-2", "081298765432"],
+    ["NO.", "NAMA LENGKAP", "KELAS", "NO. HP"],
+    ["1", "Budi Santoso", "X-1", "081234567890"],
+    ["2", "Siti Rahayu", "X-2", "081298765432"],
   ];
   const csv = rows.map((r) => r.join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -838,13 +838,15 @@ function ImportExcelDialog({
 
     const parsed: ImportRow[] = raw.map((r) => {
       const nama = String(
-        r["nama"] ?? r["Nama"] ?? r["NAMA"] ?? r["name"] ?? "",
+        r["NAMA LENGKAP"] ?? r["Nama Lengkap"] ?? r["nama lengkap"] ??
+        r["NAMA"] ?? r["Nama"] ?? r["nama"] ?? r["name"] ?? "",
       ).trim();
       const kelas = String(
-        r["kelas"] ?? r["Kelas"] ?? r["KELAS"] ?? r["class"] ?? "",
+        r["KELAS"] ?? r["Kelas"] ?? r["kelas"] ?? r["class"] ?? "",
       ).trim();
       const hp = String(
-        r["hp"] ?? r["HP"] ?? r["phone"] ?? r["Phone"] ?? r["nomor hp"] ?? r["Nomor HP"] ?? "",
+        r["NO. HP"] ?? r["No. HP"] ?? r["no. hp"] ?? r["NO HP"] ?? r["No HP"] ??
+        r["HP"] ?? r["hp"] ?? r["phone"] ?? r["Phone"] ?? r["nomor hp"] ?? r["Nomor HP"] ?? "",
       ).trim();
 
       if (!nama) return { nama, kelas, hp, email: "", status: "no_name" as const };
@@ -943,9 +945,10 @@ function ImportExcelDialog({
               <p className="font-medium">Format file yang dibutuhkan:</p>
               <p className="text-muted-foreground">
                 File Excel (.xlsx, .xls) atau CSV dengan kolom:
-                <code className="mx-1 bg-background px-1 rounded border">nama</code>
-                <code className="mx-1 bg-background px-1 rounded border">kelas</code>
-                <code className="mx-1 bg-background px-1 rounded border">hp</code>
+                <code className="mx-1 bg-background px-1 rounded border">NO.</code>
+                <code className="mx-1 bg-background px-1 rounded border">NAMA LENGKAP</code>
+                <code className="mx-1 bg-background px-1 rounded border">KELAS</code>
+                <code className="mx-1 bg-background px-1 rounded border">NO. HP</code>
               </p>
               <Button size="sm" variant="outline" onClick={downloadTemplate}>
                 <Download className="h-3 w-3 mr-1" />
