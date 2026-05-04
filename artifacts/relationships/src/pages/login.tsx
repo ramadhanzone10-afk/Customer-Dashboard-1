@@ -25,8 +25,6 @@ const AVATAR_COLORS = [
   "#8b5cf6", "#14b8a6", "#f97316", "#06b6d4", "#84cc16",
 ];
 
-const TEACHER_CODE = "MATHCLUB2024";
-
 export default function LoginPage() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
@@ -45,7 +43,6 @@ export default function LoginPage() {
   const [regPhone, setRegPhone] = useState("");
   const [regRole, setRegRole] = useState<"student" | "teacher">("student");
   const [regKelas, setRegKelas] = useState("");
-  const [regCode, setRegCode] = useState("");
   const [regShowPw, setRegShowPw] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
   const [regSuccess, setRegSuccess] = useState(false);
@@ -73,11 +70,6 @@ export default function LoginPage() {
     if (!regEmail.trim()) { setRegError("Email wajib diisi."); return; }
     if (regPassword.length < 6) { setRegError("Password minimal 6 karakter."); return; }
     if (regPassword !== regConfirm) { setRegError("Konfirmasi password tidak cocok."); return; }
-    if (regRole === "teacher" && regCode !== TEACHER_CODE) {
-      setRegError("Kode pendaftaran guru tidak valid. Hubungi admin.");
-      return;
-    }
-
     const users = read("users", []);
     const exists = users.find(
       (u) => u.email.toLowerCase() === regEmail.trim().toLowerCase(),
@@ -340,23 +332,6 @@ export default function LoginPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                      </div>
-                    )}
-
-                    {regRole === "teacher" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="reg-code">Kode Pendaftaran Guru</Label>
-                        <Input
-                          id="reg-code"
-                          placeholder="Masukkan kode dari admin"
-                          value={regCode}
-                          onChange={(e) => setRegCode(e.target.value)}
-                          required
-                          data-testid="input-reg-code"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Kode diberikan oleh admin MathClub.
-                        </p>
                       </div>
                     )}
 
