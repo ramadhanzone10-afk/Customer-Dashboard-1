@@ -2,21 +2,21 @@ import { read, write, uid } from "./storage";
 import type { User, Material, Exam, Payment, AppNotification } from "./types";
 
 const SEED_KEY = "mathclub:v1:seeded";
+const CLASSES_VERSION_KEY = "mathclub:v1:classes_version";
+const CLASSES_VERSION = "v2";
+
+const DEFAULT_CLASSES: string[] = [
+  ...Array.from({ length: 12 }, (_, i) => `X-${i + 1}`),
+  ...Array.from({ length: 12 }, (_, i) => `XI-${i + 1}`),
+  ...Array.from({ length: 12 }, (_, i) => `XII-${i + 1}`),
+];
 
 export function ensureSeed() {
   if (typeof window === "undefined") return;
   if (window.localStorage.getItem(SEED_KEY) === "true") {
-    // Migration: ensure classes list exists for users seeded before
-    const existing = read("classes", []);
-    if (existing.length === 0) {
-      const defaults = [
-        "10 IPA 1",
-        "10 IPA 2",
-        "11 IPA 1",
-        "11 IPA 2",
-        "12 IPA 1",
-        "12 IPA 2",
-      ];
+    // Migration: update classes to new list if version differs
+    const classesVersion = window.localStorage.getItem(CLASSES_VERSION_KEY);
+    if (classesVersion !== CLASSES_VERSION) {
       const fromUsers = Array.from(
         new Set(
           read("users", [])
@@ -24,8 +24,9 @@ export function ensureSeed() {
             .filter((k): k is string => !!k && k.trim().length > 0),
         ),
       );
-      const merged = Array.from(new Set([...defaults, ...fromUsers]));
+      const merged = Array.from(new Set([...DEFAULT_CLASSES, ...fromUsers]));
       write("classes", merged);
+      window.localStorage.setItem(CLASSES_VERSION_KEY, CLASSES_VERSION);
     }
     return;
   }
@@ -252,15 +253,6 @@ export function ensureSeed() {
     read: false,
   });
 
-  const classes = [
-    "10 IPA 1",
-    "10 IPA 2",
-    "11 IPA 1",
-    "11 IPA 2",
-    "12 IPA 1",
-    "12 IPA 2",
-  ];
-
   write("users", users);
   write("materials", materials);
   write("materialProgress", []);
@@ -269,7 +261,8 @@ export function ensureSeed() {
   write("payments", payments);
   write("notifications", notifications);
   write("session", null);
-  write("classes", classes);
+  write("classes", DEFAULT_CLASSES);
+  window.localStorage.setItem(CLASSES_VERSION_KEY, CLASSES_VERSION);
 
   // Initial unread teacher notification
   const teacherNotif: AppNotification[] = read("notifications", []);
