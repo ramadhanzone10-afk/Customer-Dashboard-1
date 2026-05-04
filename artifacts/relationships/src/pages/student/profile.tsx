@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Save, User as UserIcon, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Save, User as UserIcon, CheckCircle2, KeyRound, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,8 @@ export default function StudentProfile() {
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -163,28 +165,72 @@ export default function StudentProfile() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Ubah Password (opsional)</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Ganti Password
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Kosongkan jika tidak ingin mengganti password.
+          </p>
           <div>
             <Label>Password baru</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Kosongkan jika tidak ingin diubah"
-              data-testid="input-profile-password"
-            />
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimal 6 karakter"
+                className="pr-10"
+                data-testid="input-profile-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
           <div>
             <Label>Konfirmasi password baru</Label>
-            <Input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              data-testid="input-profile-confirm-password"
-            />
+            <div className="relative">
+              <Input
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Ulangi password baru"
+                className="pr-10"
+                data-testid="input-profile-confirm-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
+          {password && (
+            <div className="flex gap-1 flex-wrap">
+              {[
+                { label: "≥6 karakter", ok: password.length >= 6 },
+                { label: "Cocok", ok: password === confirmPassword && confirmPassword !== "" },
+              ].map(({ label, ok }) => (
+                <span
+                  key={label}
+                  className={`text-xs px-2 py-0.5 rounded-full ${ok ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                >
+                  {ok ? "✓" : "○"} {label}
+                </span>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

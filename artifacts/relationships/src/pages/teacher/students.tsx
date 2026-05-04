@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   UserPlus,
@@ -13,6 +13,10 @@ import {
   Download,
   CheckCircle2,
   AlertTriangle,
+  Pencil,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,6 +76,8 @@ export default function TeacherStudents() {
   const [addOpen, setAddOpen] = useState(false);
   const [classMgrOpen, setClassMgrOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [editStudent, setEditStudent] = useState<User | null>(null);
+  const [resetPwStudent, setResetPwStudent] = useState<User | null>(null);
 
   const allStudents = useMemo(
     () => users.filter((u) => u.role === "student"),
@@ -415,7 +421,7 @@ export default function TeacherStudents() {
                     </div>
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex-wrap gap-2 sm:justify-between">
                   <Button
                     variant="outline"
                     onClick={() => deleteStudent(selected)}
@@ -424,6 +430,21 @@ export default function TeacherStudents() {
                     <Trash2 className="h-4 w-4 mr-2 text-destructive" />
                     Hapus Siswa
                   </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => { setSelected(null); setResetPwStudent(selected); }}
+                    >
+                      <KeyRound className="h-4 w-4 mr-2" />
+                      Reset Password
+                    </Button>
+                    <Button
+                      onClick={() => { setSelected(null); setEditStudent(selected); }}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Data
+                    </Button>
+                  </div>
                 </DialogFooter>
               </>
             );
@@ -446,6 +467,15 @@ export default function TeacherStudents() {
         open={importOpen}
         onOpenChange={setImportOpen}
         classes={classes}
+      />
+      <EditStudentDialog
+        student={editStudent}
+        onClose={() => setEditStudent(null)}
+        classes={classes}
+      />
+      <ResetPasswordDialog
+        student={resetPwStudent}
+        onClose={() => setResetPwStudent(null)}
       />
     </div>
   );
@@ -754,6 +784,201 @@ function ClassManagerDialog({
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>Selesai</Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditStudentDialog({
+  student,
+  onClose,
+  classes,
+}: {
+  student: User | null;
+  onClose: () => void;
+  classes: string[];
+}) {
+  const [name, setName] = useState("");
+  const [kelas, setKelas] = useState("");
+  const [phone, setPhone] = useState("");
+  const [color, setColor] = useState(AVATAR_COLORS[0]);
+
+  useEffect(() => {
+    if (student) {
+      setName(student.name);
+      setKelas(student.kelas ?? "");
+      setPhone(student.phone ?? "");
+      setColor(student.avatarColor ?? AVATAR_COLORS[0]);
+    }
+  }, [student]);
+
+  function save() {
+    if (!name.trim()) { alert("Nama tidak boleh kosong."); return; }
+    const all = read("users", []);
+    write("users", all.map((u) =>
+      u.id === student!.id
+        ? { ...u, name: name.trim(), kelas: kelas.trim() || undefined, phone: phone.trim() || undefined, avatarColor: color }
+        : u,
+    ));
+    onClose();
+  }
+
+  return (
+    <Dialog open={!!student} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4" />
+            Edit Data Siswa
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Nama lengkap *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="contoh: Budi Santoso" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Kelas</Label>
+              <Select value={kelas || "__none__"} onValueChange={(v) => setKelas(v === "__none__" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih kelas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tanpa kelas —</SelectItem>
+                  {classes.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Nomor HP</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="081234567890" />
+            </div>
+          </div>
+          <div>
+            <Label>Email</Label>
+            <Input value={student?.email ?? ""} disabled className="text-muted-foreground" />
+            <p className="text-xs text-muted-foreground mt-1">Email tidak dapat diubah.</p>
+          </div>
+          <div>
+            <Label>Warna avatar</Label>
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {AVATAR_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={"h-8 w-8 rounded-full border-2 transition-all " + (color === c ? "border-foreground scale-110" : "border-transparent")}
+                  style={{ background: c }}
+                  aria-label={`Warna ${c}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Batal</Button>
+          <Button onClick={save}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Simpan Perubahan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ResetPasswordDialog({
+  student,
+  onClose,
+}: {
+  student: User | null;
+  onClose: () => void;
+}) {
+  const [password, setPassword] = useState("siswa123");
+  const [showPw, setShowPw] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (student) { setPassword("siswa123"); setDone(false); }
+  }, [student]);
+
+  function save() {
+    if (password.length < 6) { alert("Password minimal 6 karakter."); return; }
+    const all = read("users", []);
+    write("users", all.map((u) =>
+      u.id === student!.id ? { ...u, password } : u,
+    ));
+    setDone(true);
+  }
+
+  return (
+    <Dialog open={!!student} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Reset Password Siswa
+          </DialogTitle>
+        </DialogHeader>
+
+        {done ? (
+          <div className="text-center py-6 space-y-2">
+            <CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" />
+            <p className="font-semibold">Password berhasil diubah!</p>
+            <p className="text-sm text-muted-foreground">
+              Password baru untuk <span className="font-medium">{student?.name}</span>:
+            </p>
+            <code className="block text-base font-mono bg-muted px-3 py-2 rounded text-center">
+              {password}
+            </code>
+            <Button className="mt-2 w-full" onClick={onClose}>Selesai</Button>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Atur password baru untuk <span className="font-semibold text-foreground">{student?.name}</span>.
+              </p>
+              <div>
+                <Label>Password baru</Label>
+                <div className="relative mt-1">
+                  <Input
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-primary underline-offset-2 hover:underline"
+                onClick={() => setPassword("siswa123")}
+              >
+                Gunakan default (siswa123)
+              </button>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Batal</Button>
+              <Button onClick={save}>
+                <KeyRound className="h-4 w-4 mr-2" />
+                Reset Password
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
