@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, BookOpen, Clock, Users as UsersIcon, FileText, Trash2, Pencil } from "lucide-react";
+import { Plus, BookOpen, Clock, Users as UsersIcon, FileText, Trash2, Pencil, Video, Link as LinkIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +101,12 @@ export default function TeacherMaterials() {
                       File
                     </Badge>
                   )}
+                  {(m.videoUrl || m.videoDataUrl) && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Video className="h-3 w-3" />
+                      Video
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="gap-1">
                     <UsersIcon className="h-3 w-3" />
                     {m.assignedTo.length}
@@ -170,6 +176,12 @@ function MaterialDialog({
   );
   const [fileName, setFileName] = useState(editing?.fileName ?? "");
   const [fileDataUrl, setFileDataUrl] = useState(editing?.fileDataUrl ?? "");
+  const [videoUrl, setVideoUrl] = useState(editing?.videoUrl ?? "");
+  const [videoFileName, setVideoFileName] = useState(editing?.videoFileName ?? "");
+  const [videoDataUrl, setVideoDataUrl] = useState(editing?.videoDataUrl ?? "");
+  const [videoTab, setVideoTab] = useState<"link" | "upload">(
+    editing?.videoDataUrl ? "upload" : "link",
+  );
 
   // Reset state when dialog opens with new editing target
   useMemo(() => {
@@ -181,6 +193,10 @@ function MaterialDialog({
       setAssigned(editing?.assignedTo ?? students.map((s) => s.id));
       setFileName(editing?.fileName ?? "");
       setFileDataUrl(editing?.fileDataUrl ?? "");
+      setVideoUrl(editing?.videoUrl ?? "");
+      setVideoFileName(editing?.videoFileName ?? "");
+      setVideoDataUrl(editing?.videoDataUrl ?? "");
+      setVideoTab(editing?.videoDataUrl ? "upload" : "link");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing?.id]);
@@ -192,6 +208,17 @@ function MaterialDialog({
     reader.onload = () => {
       setFileName(f.name);
       setFileDataUrl(reader.result as string);
+    };
+    reader.readAsDataURL(f);
+  }
+
+  function onVideoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setVideoFileName(f.name);
+      setVideoDataUrl(reader.result as string);
     };
     reader.readAsDataURL(f);
   }
@@ -210,6 +237,9 @@ function MaterialDialog({
       content,
       fileName: fileName || undefined,
       fileDataUrl: fileDataUrl || undefined,
+      videoUrl: videoTab === "link" && videoUrl.trim() ? videoUrl.trim() : undefined,
+      videoFileName: videoTab === "upload" && videoFileName ? videoFileName : undefined,
+      videoDataUrl: videoTab === "upload" && videoDataUrl ? videoDataUrl : undefined,
       timerMinutes: timerMinutes ? parseInt(timerMinutes) : undefined,
       createdBy: existing?.createdBy ?? teacherId,
       assignedTo: assigned,
@@ -280,10 +310,7 @@ function MaterialDialog({
                 File terpilih: {fileName}
                 {fileDataUrl && (
                   <button
-                    onClick={() => {
-                      setFileName("");
-                      setFileDataUrl("");
-                    }}
+                    onClick={() => { setFileName(""); setFileDataUrl(""); }}
                     className="ml-2 text-destructive underline"
                   >
                     hapus
@@ -292,6 +319,72 @@ function MaterialDialog({
               </div>
             )}
           </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <Video className="h-4 w-4" />
+              Video pembelajaran (opsional)
+            </Label>
+            <div className="flex gap-2 mb-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={videoTab === "link" ? "default" : "outline"}
+                onClick={() => setVideoTab("link")}
+              >
+                <LinkIcon className="h-3 w-3 mr-1" />
+                Link Video
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={videoTab === "upload" ? "default" : "outline"}
+                onClick={() => setVideoTab("upload")}
+              >
+                <Video className="h-3 w-3 mr-1" />
+                Upload Video
+              </Button>
+            </div>
+            {videoTab === "link" && (
+              <div className="space-y-1">
+                <Input
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=... atau link video lainnya"
+                  data-testid="input-material-video-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mendukung YouTube, Vimeo, dan link video langsung (.mp4, dll).
+                </p>
+              </div>
+            )}
+            {videoTab === "upload" && (
+              <div className="space-y-1">
+                <Input
+                  type="file"
+                  accept="video/*"
+                  onChange={onVideoFile}
+                  data-testid="input-material-video-file"
+                />
+                {videoFileName && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Video className="h-3 w-3" />
+                    {videoFileName}
+                    <button
+                      onClick={() => { setVideoFileName(""); setVideoDataUrl(""); }}
+                      className="ml-1 text-destructive underline"
+                    >
+                      hapus
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Format: MP4, WebM, OGG. Ukuran besar mungkin lambat diupload.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div>
             <Label>Timer belajar (menit, opsional)</Label>
             <Input

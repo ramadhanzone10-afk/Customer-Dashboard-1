@@ -18,6 +18,9 @@ export interface Material {
   content: string;
   fileName?: string;
   fileDataUrl?: string;
+  videoUrl?: string;
+  videoFileName?: string;
+  videoDataUrl?: string;
   timerMinutes?: number;
   createdBy: string;
   assignedTo: string[];

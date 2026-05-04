@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, Clock, FileText, CheckCircle2, Download } from "lucide-react";
+import { ArrowLeft, Clock, FileText, CheckCircle2, Download, Video, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +59,31 @@ export default function StudentMaterialView() {
     setLocation("/student/materials");
   }
 
-  if (!material) {
+function getEmbedUrl(url: string): { type: "youtube" | "vimeo" | "direct"; src: string } | null {
+  try {
+    const u = new URL(url);
+    // YouTube
+    if (u.hostname.includes("youtube.com")) {
+      const v = u.searchParams.get("v");
+      if (v) return { type: "youtube", src: `https://www.youtube.com/embed/${v}` };
+    }
+    if (u.hostname === "youtu.be") {
+      const v = u.pathname.slice(1);
+      if (v) return { type: "youtube", src: `https://www.youtube.com/embed/${v}` };
+    }
+    // Vimeo
+    if (u.hostname.includes("vimeo.com")) {
+      const v = u.pathname.slice(1);
+      if (v) return { type: "vimeo", src: `https://player.vimeo.com/video/${v}` };
+    }
+    // Direct video link
+    return { type: "direct", src: url };
+  } catch {
+    return null;
+  }
+}
+
+if (!material) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Materi tidak ditemukan.</p>
@@ -124,6 +148,66 @@ export default function StudentMaterialView() {
                 {running ? "Pause" : remaining === 0 ? "Mulai ulang" : "Mulai"}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(material.videoUrl || material.videoDataUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              Video Pembelajaran
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {material.videoDataUrl && (
+              <video
+                src={material.videoDataUrl}
+                controls
+                className="w-full rounded-md border"
+                data-testid="video-player-upload"
+              >
+                Browser kamu tidak mendukung pemutaran video.
+              </video>
+            )}
+            {material.videoUrl && (() => {
+              const embed = getEmbedUrl(material.videoUrl);
+              if (!embed) return null;
+              if (embed.type === "youtube" || embed.type === "vimeo") {
+                return (
+                  <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                    <iframe
+                      src={embed.src}
+                      className="absolute inset-0 w-full h-full rounded-md border"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title="Video pembelajaran"
+                      data-testid="video-player-embed"
+                    />
+                  </div>
+                );
+              }
+              // Direct video link
+              return (
+                <div className="space-y-2">
+                  <video
+                    src={embed.src}
+                    controls
+                    className="w-full rounded-md border"
+                    data-testid="video-player-direct"
+                  >
+                    Browser kamu tidak mendukung pemutaran video.
+                  </video>
+                  <Button asChild size="sm" variant="outline">
+                    <a href={embed.src} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Buka di tab baru
+                    </a>
+                  </Button>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
