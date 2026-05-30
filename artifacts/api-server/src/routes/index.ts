@@ -5,6 +5,7 @@ import stagesRouter from "./stages";
 import contactsRouter from "./contacts";
 import interactionsRouter from "./interactions";
 import statsRouter from "./stats";
+import mathclubRouter from "./mathclub";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(stagesRouter);
 router.use(contactsRouter);
 router.use(interactionsRouter);
 router.use(statsRouter);
+router.use(mathclubRouter);
 
 export default router;

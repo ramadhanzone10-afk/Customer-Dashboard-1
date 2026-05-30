@@ -1,0 +1,1 @@
+- [MathClub backend auth](mathclub-backend-auth.md) — users/classes persist via PostgreSQL through api-server; SPA uses write-through cache pattern with localStorage as client-side cache.

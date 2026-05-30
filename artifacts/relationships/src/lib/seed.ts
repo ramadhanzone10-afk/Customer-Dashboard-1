@@ -1,4 +1,5 @@
 import { read, write, uid } from "./storage";
+import { mcApi } from "./api-client";
 import type { User, Material, Exam, Payment, AppNotification } from "./types";
 
 const SEED_KEY = "mathclub:v1:seeded";
@@ -279,4 +280,30 @@ export function ensureSeed() {
   write("notifications", teacherNotif);
 
   window.localStorage.setItem(SEED_KEY, "true");
+}
+
+const DEFAULT_SEED_USERS: Array<{
+  id: string; email: string; password: string; name: string;
+  role: string; avatarColor: string; kelas?: string; phone?: string;
+}> = [
+  { id: "u_teacher", email: "guru@mathclub.id", password: "guru123", name: "Pak Budi", role: "teacher", avatarColor: "#6366f1" },
+  { id: "u_andi", email: "andi@mathclub.id", password: "siswa123", name: "Andi Pratama", role: "student", avatarColor: "#10b981", kelas: "X-1", phone: "081234567890" },
+  { id: "u_siti", email: "siti@mathclub.id", password: "siswa123", name: "Siti Nurhaliza", role: "student", avatarColor: "#f59e0b", kelas: "XI-1", phone: "081298765432" },
+  { id: "u_rudi", email: "rudi@mathclub.id", password: "siswa123", name: "Rudi Hartono", role: "student", avatarColor: "#ec4899", kelas: "XII-1", phone: "081345678910" },
+];
+
+export async function ensureDefaultUsers() {
+  try {
+    const existing = await mcApi.getUsers();
+    const hasTeacher = existing.some((u) => u.email === "guru@mathclub.id");
+    if (!hasTeacher) {
+      await Promise.all(DEFAULT_SEED_USERS.map((u) => mcApi.createUser(u as never).catch(() => {})));
+    }
+    const classes = await mcApi.getClasses();
+    if (classes.length === 0) {
+      await mcApi.updateClasses(DEFAULT_CLASSES).catch(() => {});
+    }
+  } catch {
+    // API not available, skip
+  }
 }

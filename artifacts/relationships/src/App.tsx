@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { ensureSeed } from "@/lib/seed";
+import { ensureSeed, ensureDefaultUsers } from "@/lib/seed";
 import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
 
@@ -78,6 +78,7 @@ function Router() {
 function App() {
   useEffect(() => {
     ensureSeed();
+    void ensureDefaultUsers();
   }, []);
 
   return (

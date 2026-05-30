@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { read, write, subscribe } from "./storage";
+import { mcApi } from "./api-client";
 import type { User } from "./types";
 
 interface AuthContextValue {
   user: User | null;
-  login: (email: string, password: string) => { ok: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   refresh: () => void;
+  syncing: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -18,34 +20,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const users = read("users", []);
     return users.find((u) => u.id === session.userId) ?? null;
   });
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncFromBackend() {
+    setSyncing(true);
+    try {
+      const [apiUsers, apiClasses] = await Promise.all([
+        mcApi.getUsers(),
+        mcApi.getClasses(),
+      ]);
+      const localUsers = read("users", []);
+      const mergedMap = new Map<string, User>();
+      localUsers.forEach((u) => mergedMap.set(u.id, u));
+      apiUsers.forEach((u) => mergedMap.set(u.id, { ...mergedMap.get(u.id), ...u } as User));
+      write("users", Array.from(mergedMap.values()));
+      write("classes", apiClasses);
+    } catch {
+      // API tidak tersedia, gunakan data lokal
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    syncFromBackend();
+    const interval = setInterval(syncFromBackend, 30_000);
+    const onFocus = () => syncFromBackend();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handler = () => {
       const session = read("session", null);
-      if (!session) {
-        setUser(null);
-        return;
-      }
+      if (!session) { setUser(null); return; }
       const users = read("users", []);
       setUser(users.find((u) => u.id === session.userId) ?? null);
     };
     const off1 = subscribe("session", handler);
     const off2 = subscribe("users", handler);
-    return () => {
-      off1();
-      off2();
-    };
+    return () => { off1(); off2(); };
   }, []);
 
-  const login = useCallback((email: string, password: string) => {
-    const users = read("users", []);
-    const found = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
-    );
-    if (!found) return { ok: false, error: "Email atau password salah." };
-    write("session", { userId: found.id });
-    setUser(found);
-    return { ok: true };
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const apiUser = await mcApi.login(email, password);
+      const allUsers = read("users", []);
+      if (!allUsers.find((u) => u.id === apiUser.id)) {
+        write("users", [...allUsers, { ...apiUser, password }]);
+      } else {
+        write("users", allUsers.map((u) => u.id === apiUser.id ? { ...u, ...apiUser, password } : u));
+      }
+      write("session", { userId: apiUser.id });
+      setUser({ ...apiUser, password } as User);
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login gagal.";
+      // Fallback ke localStorage jika API tidak tersedia
+      const users = read("users", []);
+      const found = users.find(
+        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
+      );
+      if (!found) return { ok: false, error: msg };
+      write("session", { userId: found.id });
+      setUser(found);
+      return { ok: true };
+    }
   }, []);
 
   const logout = useCallback(() => {
@@ -55,16 +99,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => {
     const session = read("session", null);
-    if (!session) {
-      setUser(null);
-      return;
-    }
+    if (!session) { setUser(null); return; }
     const users = read("users", []);
     setUser(users.find((u) => u.id === session.userId) ?? null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, login, logout, refresh, syncing }}>
       {children}
     </AuthContext.Provider>
   );

@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
+import { mcApi } from "@/lib/api-client";
 import type {
   User,
   Material,
@@ -149,6 +150,7 @@ export default function TeacherStudents() {
       return;
     const allUsers = read("users", []);
     write("users", allUsers.filter((u) => u.id !== s.id));
+    void mcApi.deleteUser(s.id).catch(() => {});
 
     const allMats = read("materials", []);
     write(
@@ -531,6 +533,7 @@ function AddStudentDialog({
       phone: phone.trim() || undefined,
     };
     write("users", [...allUsers, newStudent]);
+    void mcApi.createUser(newStudent).catch(() => {});
 
     if (enrollAll) {
       const mats: Material[] = read("materials", []);
@@ -704,7 +707,9 @@ function ClassManagerDialog({
     if (classes.some((c) => c.toLowerCase() === name.toLowerCase())) {
       return alert("Kelas dengan nama itu sudah ada.");
     }
-    write("classes", [...classes, name]);
+    const next = [...classes, name];
+    write("classes", next);
+    void mcApi.updateClasses(next).catch(() => {});
     setNewClass("");
   }
 
@@ -715,10 +720,9 @@ function ClassManagerDialog({
         ? `Kelas "${name}" digunakan oleh ${inUse} siswa. Hapus tetap? Siswa akan menjadi tanpa kelas.`
         : `Hapus kelas "${name}"?`;
     if (!confirm(msg)) return;
-    write(
-      "classes",
-      classes.filter((c) => c !== name),
-    );
+    const nextClasses = classes.filter((c) => c !== name);
+    write("classes", nextClasses);
+    void mcApi.updateClasses(nextClasses).catch(() => {});
     if (inUse > 0) {
       const all = read("users", []);
       write(
@@ -815,11 +819,13 @@ function EditStudentDialog({
   function save() {
     if (!name.trim()) { alert("Nama tidak boleh kosong."); return; }
     const all = read("users", []);
+    const updates = { name: name.trim(), kelas: kelas.trim() || null, phone: phone.trim() || null, avatarColor: color };
     write("users", all.map((u) =>
       u.id === student!.id
-        ? { ...u, name: name.trim(), kelas: kelas.trim() || undefined, phone: phone.trim() || undefined, avatarColor: color }
+        ? { ...u, ...updates, kelas: updates.kelas ?? undefined, phone: updates.phone ?? undefined }
         : u,
     ));
+    void mcApi.updateUser(student!.id, updates).catch(() => {});
     onClose();
   }
 
@@ -911,6 +917,7 @@ function ResetPasswordDialog({
     write("users", all.map((u) =>
       u.id === student!.id ? { ...u, password } : u,
     ));
+    void mcApi.updateUser(student!.id, { password }).catch(() => {});
     setDone(true);
   }
 
@@ -1108,6 +1115,7 @@ function ImportExcelDialog({
     }));
 
     write("users", [...allUsers, ...newStudents]);
+    void Promise.all(newStudents.map((s) => mcApi.createUser(s).catch(() => {}))).catch(() => {});
 
     const payments: Payment[] = read("payments", []);
     write("payments", [

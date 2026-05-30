@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { read, write, uid } from "@/lib/storage";
+import { mcApi } from "@/lib/api-client";
 import type { User } from "@/lib/types";
 import logoUrl from "@assets/Logo_MathCourse_1777550046532.png";
 
@@ -51,10 +52,10 @@ export default function LoginPage() {
     "10 IPA 1", "10 IPA 2", "11 IPA 1", "11 IPA 2", "12 IPA 1", "12 IPA 2",
   ]);
 
-  function submitLogin(e: React.FormEvent) {
+  async function submitLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError(null);
-    const result = login(loginEmail.trim(), loginPassword);
+    const result = await login(loginEmail.trim(), loginPassword);
     if (!result.ok) {
       setLoginError(result.error ?? "Login gagal");
       return;
@@ -92,11 +93,12 @@ export default function LoginPage() {
     };
 
     write("users", [...users, newUser]);
+    void mcApi.createUser(newUser).catch(() => {});
     setRegSuccess(true);
 
     // Auto-login after 1.2 s
-    setTimeout(() => {
-      const result = login(newUser.email, newUser.password);
+    setTimeout(async () => {
+      const result = await login(newUser.email, newUser.password);
       if (result.ok) setLocation("/");
     }, 1200);
   }

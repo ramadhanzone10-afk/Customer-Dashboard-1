@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write } from "@/lib/storage";
+import { mcApi } from "@/lib/api-client";
 import type { User } from "@/lib/types";
 
 export default function StudentProfile() {
@@ -62,6 +63,12 @@ export default function StudentProfile() {
         : u,
     );
     write("users", updated);
+    void mcApi.updateUser(user!.id, {
+      name: name.trim(),
+      kelas: kelas.trim() || undefined,
+      phone: phone.trim() || undefined,
+      ...(password ? { password } : {}),
+    }).catch(() => {});
     refresh();
     setPassword("");
     setConfirmPassword("");
