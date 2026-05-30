@@ -1,0 +1,9 @@
+{
+  "buildCommand": "pnpm --filter @workspace/relationships run build:vercel",
+  "outputDirectory": "artifacts/relationships/dist/public",
+  "installCommand": "pnpm install",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
