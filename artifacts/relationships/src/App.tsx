@@ -15,6 +15,7 @@ import TeacherMaterials from "@/pages/teacher/materials";
 import TeacherExams from "@/pages/teacher/exams";
 import TeacherExamResults from "@/pages/teacher/exam-results";
 import TeacherPayments from "@/pages/teacher/payments";
+import TeacherChat from "@/pages/teacher/chat";
 
 import StudentDashboard from "@/pages/student/dashboard";
 import StudentMaterials from "@/pages/student/materials";
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/teacher/exams" component={() => <Protected role="teacher"><TeacherExams /></Protected>} />
       <Route path="/teacher/exams/:id/results" component={() => <Protected role="teacher"><TeacherExamResults /></Protected>} />
       <Route path="/teacher/payments" component={() => <Protected role="teacher"><TeacherPayments /></Protected>} />
+      <Route path="/teacher/chat" component={() => <Protected role="teacher"><TeacherChat /></Protected>} />
 
       <Route path="/student" component={() => <Protected role="student"><StudentDashboard /></Protected>} />
       <Route path="/student/materials" component={() => <Protected role="student"><StudentMaterials /></Protected>} />

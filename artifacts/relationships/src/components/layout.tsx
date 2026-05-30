@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   User as UserIcon,
+  MessageCircle,
 } from "lucide-react";
 import { useAuth, useStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ const teacherNav: NavItem[] = [
   { path: "/teacher/materials", label: "Materi", icon: BookOpen },
   { path: "/teacher/exams", label: "Ujian", icon: ClipboardList },
   { path: "/teacher/payments", label: "Pembayaran", icon: Wallet },
+  { path: "/teacher/chat", label: "Chat Kelas", icon: MessageCircle },
 ];
 
 const studentNav: NavItem[] = [
