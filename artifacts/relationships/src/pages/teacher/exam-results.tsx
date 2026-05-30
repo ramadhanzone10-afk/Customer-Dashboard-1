@@ -24,6 +24,7 @@ import type {
   AppNotification,
 } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 
 export default function TeacherExamResults() {
   const { id } = useParams();
@@ -232,6 +233,9 @@ function GradingDialog({
         read: false,
       };
       write("notifications", [...notifs, n]);
+      void mcApi.gradeExam(submission.id, { ...updated, notification: n }).catch(() => {});
+    } else {
+      void mcApi.gradeExam(submission.id, updated).catch(() => {});
     }
 
     onClose();

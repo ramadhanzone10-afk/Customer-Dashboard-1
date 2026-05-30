@@ -20,6 +20,7 @@ import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Material, User, AppNotification } from "@/lib/types";
 import { formatDate } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 
 export default function TeacherMaterials() {
   const { user } = useAuth();
@@ -43,6 +44,7 @@ export default function TeacherMaterials() {
   function deleteMaterial(id: string) {
     if (!confirm("Hapus materi ini?")) return;
     write("materials", materials.filter((m) => m.id !== id));
+    void mcApi.deleteMaterial(id).catch(() => {});
   }
 
   return (
@@ -262,6 +264,9 @@ function MaterialDialog({
         read: false,
       }));
       write("notifications", [...notifs, ...newNotifs]);
+      void mcApi.createMaterial({ ...m, notifications: newNotifs }).catch(() => {});
+    } else {
+      void mcApi.updateMaterial(m.id, m).catch(() => {});
     }
 
     onOpenChange(false);

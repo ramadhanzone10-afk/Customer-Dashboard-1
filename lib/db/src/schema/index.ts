@@ -3,3 +3,4 @@ export * from "./stages";
 export * from "./contacts";
 export * from "./interactions";
 export * from "./mathclub";
+export * from "./mathclub-content";

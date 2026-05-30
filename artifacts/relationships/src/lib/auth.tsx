@@ -22,37 +22,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [syncing, setSyncing] = useState(false);
 
-  async function syncFromBackend() {
+  const syncFromBackend = useCallback(async () => {
     setSyncing(true);
     try {
-      const [apiUsers, apiClasses] = await Promise.all([
-        mcApi.getUsers(),
-        mcApi.getClasses(),
-      ]);
+      const session = read("session", null);
+      const userId = session?.userId ?? null;
+
+      const [apiUsers, apiClasses, apiMaterials, apiProgress, apiExams, apiSubmissions, apiPayments] =
+        await Promise.all([
+          mcApi.getUsers(),
+          mcApi.getClasses(),
+          mcApi.getMaterials(),
+          mcApi.getMaterialProgress(),
+          mcApi.getExams(),
+          mcApi.getExamSubmissions(),
+          mcApi.getPayments(),
+        ]);
+
+      // Merge users (preserve local passwords)
       const localUsers = read("users", []);
       const mergedMap = new Map<string, User>();
       localUsers.forEach((u) => mergedMap.set(u.id, u));
       apiUsers.forEach((u) => mergedMap.set(u.id, { ...mergedMap.get(u.id), ...u } as User));
       write("users", Array.from(mergedMap.values()));
+
       write("classes", apiClasses);
+      write("materials", apiMaterials);
+      write("materialProgress", apiProgress);
+      write("exams", apiExams);
+      write("examSubmissions", apiSubmissions);
+      write("payments", apiPayments);
+
+      // Sync current user's notifications
+      if (userId) {
+        const apiNotifs = await mcApi.getNotifications(userId);
+        const allLocal = read("notifications", []);
+        const merged = [...allLocal.filter((n) => n.userId !== userId), ...apiNotifs];
+        write("notifications", merged);
+      }
     } catch {
-      // API tidak tersedia, gunakan data lokal
+      // API not available, use local data
     } finally {
       setSyncing(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     syncFromBackend();
     const interval = setInterval(syncFromBackend, 30_000);
-    const onFocus = () => syncFromBackend();
+    const onFocus = () => void syncFromBackend();
     window.addEventListener("focus", onFocus);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => { clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [syncFromBackend]);
 
   useEffect(() => {
     const handler = () => {
@@ -77,10 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       write("session", { userId: apiUser.id });
       setUser({ ...apiUser, password } as User);
+      // Sync user-specific data after login
+      void syncFromBackend();
       return { ok: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login gagal.";
-      // Fallback ke localStorage jika API tidak tersedia
       const users = read("users", []);
       const found = users.find(
         (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
@@ -90,12 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(found);
       return { ok: true };
     }
-  }, []);
+  }, [syncFromBackend]);
 
-  const logout = useCallback(() => {
-    write("session", null);
-    setUser(null);
-  }, []);
+  const logout = useCallback(() => { write("session", null); setUser(null); }, []);
 
   const refresh = useCallback(() => {
     const session = read("session", null);

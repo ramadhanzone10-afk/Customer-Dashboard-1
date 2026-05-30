@@ -555,17 +555,10 @@ function AddStudentDialog({
     // Auto-create payment for current month
     const d = new Date();
     const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const newPayment = { id: uid("p_"), userId: newStudent.id, month, amount: 350000, status: "unpaid" as const };
     const payments: Payment[] = read("payments", []);
-    write("payments", [
-      ...payments,
-      {
-        id: uid("p_"),
-        userId: newStudent.id,
-        month,
-        amount: 350000,
-        status: "unpaid",
-      },
-    ]);
+    write("payments", [...payments, newPayment]);
+    void mcApi.createPayment(newPayment).catch(() => {});
 
     reset();
     onOpenChange(false);
@@ -1117,17 +1110,10 @@ function ImportExcelDialog({
     write("users", [...allUsers, ...newStudents]);
     void Promise.all(newStudents.map((s) => mcApi.createUser(s).catch(() => {}))).catch(() => {});
 
+    const newPayments = newStudents.map((s) => ({ id: uid("p_"), userId: s.id, month, amount: 350000, status: "unpaid" as const }));
     const payments: Payment[] = read("payments", []);
-    write("payments", [
-      ...payments,
-      ...newStudents.map((s) => ({
-        id: uid("p_"),
-        userId: s.id,
-        month,
-        amount: 350000,
-        status: "unpaid" as const,
-      })),
-    ]);
+    write("payments", [...payments, ...newPayments]);
+    void mcApi.createPaymentsBatch(newPayments).catch(() => {});
 
     if (enrollAll) {
       const mats: Material[] = read("materials", []);

@@ -37,6 +37,7 @@ import { useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Payment, User, AppNotification } from "@/lib/types";
 import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 
 const NO_KELAS = "__none__";
 
@@ -119,6 +120,7 @@ export default function TeacherPayments() {
       read: false,
     };
     write("notifications", [...notifs, n]);
+    void mcApi.updatePayment(p.id, { status: "paid" as const, verifiedAt: Date.now(), notification: n }).catch(() => {});
   }
 
   function reject(p: Payment) {
@@ -139,6 +141,7 @@ export default function TeacherPayments() {
           : x,
       ),
     );
+    void mcApi.updatePayment(p.id, { status: "unpaid" as const, proofDataUrl: undefined, proofFileName: undefined, uploadedAt: undefined }).catch(() => {});
   }
 
   function sendReminder(userId: string) {
@@ -156,6 +159,7 @@ export default function TeacherPayments() {
       read: false,
     };
     write("notifications", [...notifs, n]);
+    void mcApi.createNotification(n).catch(() => {});
     alert(`Pengingat dikirim ke ${u.name}.`);
   }
 
@@ -179,6 +183,7 @@ export default function TeacherPayments() {
       read: false,
     }));
     write("notifications", [...notifs, ...newNotifs]);
+    void mcApi.createNotificationsBatch(newNotifs).catch(() => {});
     alert(`${unpaid.length} pengingat berhasil dikirim.`);
   }
 

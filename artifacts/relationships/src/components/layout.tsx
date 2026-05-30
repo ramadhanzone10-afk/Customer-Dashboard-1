@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { write, read } from "@/lib/storage";
+import { mcApi } from "@/lib/api-client";
 import type { AppNotification } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
@@ -77,6 +78,7 @@ export function Layout({ children }: { children: ReactNode }) {
       "notifications",
       all.map((n) => (n.userId === user!.id ? { ...n, read: true } : n)),
     );
+    void mcApi.markAllNotificationsRead(user!.id).catch(() => {});
   }
 
   const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (

@@ -17,6 +17,7 @@ import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Payment, AppNotification } from "@/lib/types";
 import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 
 export default function StudentPayments() {
   const { user } = useAuth();
@@ -234,6 +235,13 @@ function PayDialog({
       read: false,
     }));
     write("notifications", [...notifs, ...newNotifs]);
+    void mcApi.updatePayment(payment.id, {
+      status: "pending" as const,
+      proofFileName: fileName,
+      proofDataUrl: fileDataUrl,
+      uploadedAt: Date.now(),
+      notifications: newNotifs,
+    }).catch(() => {});
     onClose();
   }
 

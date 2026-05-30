@@ -28,6 +28,7 @@ import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Exam, Question, User, AppNotification, ExamSubmission } from "@/lib/types";
 import { formatDate } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 
 export default function TeacherExams() {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ export default function TeacherExams() {
     if (!confirm("Hapus ujian ini?")) return;
     write("exams", exams.filter((e) => e.id !== id));
     write("examSubmissions", submissions.filter((s) => s.examId !== id));
+    void mcApi.deleteExam(id).catch(() => {});
   }
 
   return (
@@ -261,6 +263,7 @@ function ExamDialog({
       read: false,
     }));
     write("notifications", [...notifs, ...newNotifs]);
+    void mcApi.createExam({ ...exam, notifications: newNotifs }).catch(() => {});
 
     onOpenChange(false);
   }

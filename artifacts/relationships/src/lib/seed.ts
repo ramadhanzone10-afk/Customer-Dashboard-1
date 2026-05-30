@@ -307,3 +307,33 @@ export async function ensureDefaultUsers() {
     // API not available, skip
   }
 }
+
+export async function ensureBackendContent() {
+  try {
+    const [apiMats, apiExams, apiPayments] = await Promise.all([
+      mcApi.getMaterials(),
+      mcApi.getExams(),
+      mcApi.getPayments(),
+    ]);
+    if (apiMats.length === 0) {
+      const localMats = read("materials", []) as Material[];
+      if (localMats.length > 0) {
+        await Promise.all(localMats.map((m) => mcApi.createMaterial(m).catch(() => {})));
+      }
+    }
+    if (apiExams.length === 0) {
+      const localExams = read("exams", []) as Exam[];
+      if (localExams.length > 0) {
+        await Promise.all(localExams.map((e) => mcApi.createExam(e).catch(() => {})));
+      }
+    }
+    if (apiPayments.length === 0) {
+      const localPayments = read("payments", []) as Payment[];
+      if (localPayments.length > 0) {
+        await mcApi.createPaymentsBatch(localPayments).catch(() => {});
+      }
+    }
+  } catch {
+    // API not available, skip
+  }
+}

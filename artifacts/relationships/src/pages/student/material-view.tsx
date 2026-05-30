@@ -9,6 +9,7 @@ import { useAuth, useStore } from "@/lib/auth";
 import { read, write } from "@/lib/storage";
 import type { Material, MaterialProgress } from "@/lib/types";
 import { formatDuration } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 
 export default function StudentMaterialView() {
   const { id } = useParams();
@@ -56,6 +57,7 @@ export default function StudentMaterialView() {
       ...all,
       { userId: user!.id, materialId: id!, completedAt: Date.now() },
     ]);
+    void mcApi.addMaterialProgress(user!.id, id!, Date.now()).catch(() => {});
     setLocation("/student/materials");
   }
 

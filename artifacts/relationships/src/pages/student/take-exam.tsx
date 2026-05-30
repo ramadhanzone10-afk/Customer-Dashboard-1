@@ -19,6 +19,7 @@ import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Exam, ExamAnswer, ExamSubmission } from "@/lib/types";
 import { formatDuration } from "@/lib/format";
+import { mcApi } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 export default function StudentTakeExam() {
@@ -171,6 +172,7 @@ export default function StudentTakeExam() {
     };
     const all = read("examSubmissions", []);
     write("examSubmissions", [...all, sub]);
+    void mcApi.submitExam(sub).catch(() => {});
     setLocation(`/student/exams/${exam!.id}/result`);
   }
 

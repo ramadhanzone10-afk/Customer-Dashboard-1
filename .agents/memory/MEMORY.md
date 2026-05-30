@@ -1,1 +1,2 @@
 - [MathClub backend auth](mathclub-backend-auth.md) — users/classes persist via PostgreSQL through api-server; SPA uses write-through cache pattern with localStorage as client-side cache.
+- [MathClub full PostgreSQL migration](mathclub-pg-migration.md) — ALL data (materials, exams, submissions, payments, notifications, progress) now in PostgreSQL; ensureBackendContent seeds first-load from localStorage; syncFromBackend polls every 30s.
