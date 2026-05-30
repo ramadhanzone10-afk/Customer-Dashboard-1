@@ -1,0 +1,148 @@
+
+Tolong agar aplikasi yg dibuat di replit bisa di deploy ke Vercel untuk pembelajaran online 500 siswa
+
+Jika tujuan Anda adalah membuat aplikasi di Replit tetapi deployment produksi dijalankan di Vercel untuk sekitar 500 siswa belajar online secara bersamaan, maka arsitektur dan konfigurasi perlu disiapkan sejak awal.
+
+Arsitektur yang disarankan
+Development
+
+Replit → untuk coding, testing, dan kolaborasi.
+
+Production
+
+Frontend → deploy ke Vercel
+
+Database → gunakan layanan terpisah seperti Supabase atau Neon
+
+Storage video/file → Cloudflare R2 atau AWS S3
+
+Authentication → Clerk atau Auth.js
+
+Teknologi yang cocok untuk 500 siswa
+Untuk Learning Management System (LMS):
+
+Frontend: Next.js
+
+Backend API: Next.js API Routes atau Server Actions
+
+Database: PostgreSQL
+
+Auth: Clerk/Auth.js
+
+Video: YouTube Unlisted atau Cloudflare Stream
+
+Payment (jika berbayar): Midtrans
+
+Vercel sangat cocok untuk:
+
+Materi belajar
+
+Quiz
+
+Dashboard siswa
+
+Tracking progres
+
+Forum sederhana
+
+Struktur proyek
+app/
+├── dashboard
+├── courses
+├── lessons
+├── quizzes
+├── certificates
+├── admin
+
+lib/
+├── db.ts
+├── auth.ts
+
+prisma/
+├── schema.prisma
+Hal yang perlu diperhatikan untuk 500 siswa
+1. Jangan simpan video di Vercel
+Video akan menghabiskan bandwidth.
+
+Lebih baik:
+
+YouTube Unlisted
+
+Vimeo
+
+Cloudflare Stream
+
+2. Gunakan database managed
+Contoh:
+
+Supabase PostgreSQL
+
+Neon PostgreSQL
+
+Karena mampu menangani ratusan hingga ribuan koneksi.
+
+3. Caching
+Aktifkan:
+
+ISR (Incremental Static Regeneration)
+
+Vercel Edge Cache
+
+Materi kursus bisa dibuat statis sehingga 500 siswa tidak membebani server.
+
+Estimasi kapasitas
+Untuk LMS standar:
+
+500 siswa terdaftar
+
+50–150 siswa aktif bersamaan
+
+Paket Hobby Vercel biasanya akan cepat mencapai limit.
+
+Untuk produksi gunakan:
+
+Vercel Pro
+
+Supabase Pro atau Neon Scale
+
+Prompt yang bisa diberikan ke Replit AI
+Buat aplikasi LMS berbasis Next.js 15 yang dapat di-deploy ke Vercel.
+
+Fitur:
+- Login siswa dan admin
+- Dashboard siswa
+- Manajemen kursus
+- Materi video
+- Quiz pilihan ganda
+- Tracking progres belajar
+- Sertifikat PDF
+- Database PostgreSQL
+- Prisma ORM
+- Tailwind CSS
+- Responsive mobile
+- Optimasi untuk 500 siswa
+- Konfigurasi deployment Vercel
+- Environment variables terpisah untuk development dan production
+- README deployment ke Vercel
+Agar mudah deploy ke Vercel
+Pastikan proyek Replit:
+
+Menggunakan Next.js.
+
+Kode tersimpan di GitHub.
+
+Hubungkan GitHub ke Vercel Dashboard.
+
+Tambahkan environment variables.
+
+Klik Deploy.
+
+Jika Anda sudah memiliki aplikasi dari Replit, kirimkan:
+
+jenis aplikasi (Next.js, React, Express, Laravel, dll.)
+
+struktur folder proyek
+
+ukuran pengguna aktif bersamaan yang ditargetkan
+
+Saya bisa membantu menyesuaikan agar benar-benar siap deploy ke Vercel untuk 500 siswa.
