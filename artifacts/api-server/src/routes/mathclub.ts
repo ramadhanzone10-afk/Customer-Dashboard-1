@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, mcUsersTable, mcSettingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, mcUsersTable, mcSettingsTable, mcClassMessagesTable } from "@workspace/db";
+import { eq, asc } from "drizzle-orm";
 
 const router = Router();
 
@@ -69,6 +69,36 @@ router.put("/mc/users/:id", async (req, res) => {
 
 router.delete("/mc/users/:id", async (req, res) => {
   await db.delete(mcUsersTable).where(eq(mcUsersTable.id, req.params.id));
+  res.json({ ok: true });
+});
+
+router.get("/mc/messages/:kelas", async (req, res) => {
+  const { kelas } = req.params;
+  const rows = await db
+    .select()
+    .from(mcClassMessagesTable)
+    .where(eq(mcClassMessagesTable.kelas, kelas))
+    .orderBy(asc(mcClassMessagesTable.createdAt));
+  res.json(rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt).getTime() })));
+});
+
+router.post("/mc/messages", async (req, res) => {
+  const { id, kelas, userId, text } = req.body as {
+    id: string; kelas: string; userId: string; text: string;
+  };
+  if (!id || !kelas || !userId || !text?.trim()) {
+    res.status(400).json({ error: "Data tidak lengkap." });
+    return;
+  }
+  const [created] = await db
+    .insert(mcClassMessagesTable)
+    .values({ id, kelas, userId, text: text.trim() })
+    .returning();
+  res.status(201).json({ ...created, createdAt: new Date(created.createdAt).getTime() });
+});
+
+router.delete("/mc/messages/:id", async (req, res) => {
+  await db.delete(mcClassMessagesTable).where(eq(mcClassMessagesTable.id, req.params.id));
   res.json({ ok: true });
 });
 

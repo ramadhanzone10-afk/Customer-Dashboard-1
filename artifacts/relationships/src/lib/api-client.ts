@@ -50,4 +50,18 @@ export const mcApi = {
       method: "PUT",
       body: JSON.stringify(classes),
     }),
+
+  getMessages: (kelas: string) =>
+    req<{ id: string; kelas: string; userId: string; text: string; createdAt: number }[]>(
+      `/mc/messages/${encodeURIComponent(kelas)}`,
+    ),
+
+  postMessage: (msg: { id: string; kelas: string; userId: string; text: string }) =>
+    req<{ id: string; kelas: string; userId: string; text: string; createdAt: number }>(
+      "/mc/messages",
+      { method: "POST", body: JSON.stringify(msg) },
+    ),
+
+  deleteMessage: (id: string) =>
+    req<{ ok: boolean }>(`/mc/messages/${id}`, { method: "DELETE" }),
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   Users,
@@ -8,6 +8,9 @@ import {
   MessageCircle,
   GraduationCap,
   AlertCircle,
+  Loader2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,17 +19,24 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth, useStore } from "@/lib/auth";
-import { read, write, uid } from "@/lib/storage";
+import { uid } from "@/lib/storage";
+import { mcApi } from "@/lib/api-client";
 import type { User, ClassMessage } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+const POLL_INTERVAL = 5000;
+
 export default function StudentClass() {
   const { user } = useAuth();
   const users = useStore<User[]>("users", []);
-  const messages = useStore<ClassMessage[]>("classMessages", []);
+  const [messages, setMessages] = useState<ClassMessage[]>([]);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [online, setOnline] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastCountRef = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const kelas = user?.kelas;
 
@@ -38,24 +48,39 @@ export default function StudentClass() {
     [users, kelas],
   );
 
-  const myMessages = useMemo(
-    () =>
-      messages
-        .filter((m) => m.kelas === kelas)
-        .sort((a, b) => a.createdAt - b.createdAt),
-    [messages, kelas],
-  );
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  const fetchMessages = useCallback(async () => {
+    if (!kelas) return;
+    try {
+      const data = await mcApi.getMessages(kelas);
+      setOnline(true);
+      setMessages(data);
+    } catch {
+      setOnline(false);
     }
-  }, [myMessages.length]);
+  }, [kelas]);
 
-  function send() {
+  // Initial fetch + polling every 5s
+  useEffect(() => {
+    if (!kelas) return;
+    fetchMessages();
+    const id = setInterval(fetchMessages, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [kelas, fetchMessages]);
+
+  // Auto-scroll when new messages arrive
+  useEffect(() => {
+    if (messages.length !== lastCountRef.current) {
+      lastCountRef.current = messages.length;
+      if (scrollRef.current) {
+        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+      }
+    }
+  }, [messages.length]);
+
+  async function send() {
     const t = text.trim();
-    if (!t || !kelas || !user) return;
-    const all = read("classMessages", []);
+    if (!t || !kelas || !user || sending) return;
+    setSending(true);
     const newMsg: ClassMessage = {
       id: uid("cm_"),
       kelas,
@@ -63,8 +88,19 @@ export default function StudentClass() {
       text: t,
       createdAt: Date.now(),
     };
-    write("classMessages", [...all, newMsg]);
+    // Optimistic update
+    setMessages((prev) => [...prev, newMsg]);
     setText("");
+    try {
+      await mcApi.postMessage({ id: newMsg.id, kelas, userId: user.id, text: t });
+      // Refresh to get server-confirmed state
+      await fetchMessages();
+    } catch {
+      setOnline(false);
+    } finally {
+      setSending(false);
+      inputRef.current?.focus();
+    }
   }
 
   if (!user) return null;
@@ -78,9 +114,7 @@ export default function StudentClass() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Kelas Saya</h1>
-            <p className="text-sm text-muted-foreground">
-              Lihat teman sekelas dan grup chat kelas.
-            </p>
+            <p className="text-sm text-muted-foreground">Lihat teman sekelas dan grup chat kelas.</p>
           </div>
         </div>
         <Alert>
@@ -90,8 +124,7 @@ export default function StudentClass() {
             <Link href="/student/profile" className="underline font-medium">
               Edit Profil
             </Link>{" "}
-            untuk memilih kelas kamu, lalu kembali ke halaman ini untuk melihat teman
-            sekelas.
+            untuk memilih kelas kamu, lalu kembali ke halaman ini untuk melihat teman sekelas.
           </AlertDescription>
         </Alert>
       </div>
@@ -106,9 +139,11 @@ export default function StudentClass() {
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">Kelas {kelas}</h1>
-          <p className="text-sm text-muted-foreground">
-            {classmates.length} teman sekelas
-          </p>
+          <p className="text-sm text-muted-foreground">{classmates.length} teman sekelas</p>
+        </div>
+        <div className={cn("flex items-center gap-1.5 text-xs", online ? "text-emerald-600" : "text-muted-foreground")}>
+          {online ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+          {online ? "Terhubung" : "Offline"}
         </div>
       </div>
 
@@ -131,34 +166,32 @@ export default function StudentClass() {
                 <MessageCircle className="h-4 w-4" />
                 Grup Chat Kelas {kelas}
                 <Badge variant="secondary" className="ml-auto">
-                  {myMessages.length} pesan
+                  {messages.length} pesan
                 </Badge>
               </CardTitle>
             </CardHeader>
+
             <CardContent className="flex-1 overflow-hidden p-0">
               <div
                 ref={scrollRef}
                 className="h-full overflow-y-auto p-4 space-y-3"
                 data-testid="chat-messages"
               >
-                {myMessages.length === 0 && (
+                {messages.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center text-center text-sm text-muted-foreground">
                     <MessageCircle className="h-10 w-10 mb-2 opacity-30" />
                     <p>Belum ada pesan di kelas ini.</p>
                     <p className="text-xs mt-1">Sapa teman sekelas kamu!</p>
                   </div>
                 )}
-                {myMessages.map((m) => {
+                {messages.map((m) => {
                   const sender = users.find((u) => u.id === m.userId);
                   const isMe = m.userId === user.id;
                   const isTeacher = sender?.role === "teacher";
                   return (
                     <div
                       key={m.id}
-                      className={cn(
-                        "flex gap-2",
-                        isMe ? "flex-row-reverse" : "flex-row",
-                      )}
+                      className={cn("flex gap-2", isMe ? "flex-row-reverse" : "flex-row")}
                       data-testid={`message-${m.id}`}
                     >
                       <div
@@ -180,10 +213,7 @@ export default function StudentClass() {
                           <div className="flex items-center gap-1 text-[11px] font-semibold mb-0.5 opacity-80">
                             {sender?.name ?? "Pengguna"}
                             {isTeacher && (
-                              <Badge
-                                variant="default"
-                                className="h-4 px-1 text-[9px]"
-                              >
+                              <Badge variant="default" className="h-4 px-1 text-[9px]">
                                 Guru
                               </Badge>
                             )}
@@ -193,9 +223,7 @@ export default function StudentClass() {
                         <div
                           className={cn(
                             "text-[10px] mt-0.5",
-                            isMe
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground",
+                            isMe ? "text-primary-foreground/70" : "text-muted-foreground",
                           )}
                         >
                           {formatRelative(m.createdAt)}
@@ -206,25 +234,32 @@ export default function StudentClass() {
                 })}
               </div>
             </CardContent>
+
             <div className="border-t p-3 flex gap-2">
               <Input
+                ref={inputRef}
                 placeholder="Tulis pesan untuk teman sekelas..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    send();
+                    void send();
                   }
                 }}
+                disabled={sending}
                 data-testid="input-message"
               />
               <Button
-                onClick={send}
-                disabled={!text.trim()}
+                onClick={() => void send()}
+                disabled={!text.trim() || sending}
                 data-testid="button-send-message"
               >
-                <Send className="h-4 w-4" />
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </Card>
@@ -257,28 +292,20 @@ export default function StudentClass() {
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          Kelas {c.kelas}
-                        </div>
+                        <div className="text-xs text-muted-foreground truncate">Kelas {c.kelas}</div>
                       </div>
                     </div>
                     <div className="space-y-1.5 text-xs">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Mail className="h-3 w-3 shrink-0" />
-                        <a
-                          href={`mailto:${c.email}`}
-                          className="truncate hover:text-foreground"
-                        >
+                        <a href={`mailto:${c.email}`} className="truncate hover:text-foreground">
                           {c.email}
                         </a>
                       </div>
                       {c.phone && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Phone className="h-3 w-3 shrink-0" />
-                          <a
-                            href={`tel:${c.phone}`}
-                            className="truncate hover:text-foreground"
-                          >
+                          <a href={`tel:${c.phone}`} className="truncate hover:text-foreground">
                             {c.phone}
                           </a>
                         </div>
