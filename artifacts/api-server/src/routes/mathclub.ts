@@ -28,8 +28,25 @@ router.post("/mc/auth/login", async (req, res) => {
   if (!email || !password) { res.status(400).json({ error: "Email dan password wajib diisi." }); return; }
   const [user] = await db.select().from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
   if (!user || user.password !== password) { res.status(401).json({ error: "Email atau password salah." }); return; }
+  if (user.status === "pending") { res.status(403).json({ error: "Akun Anda sedang menunggu persetujuan guru." }); return; }
   const { password: _pw, ...safe } = user;
   res.json(safe);
+});
+
+router.post("/mc/auth/register", async (req, res) => {
+  const { id, email, password, name, avatarColor, kelas, phone } = req.body as {
+    id: string; email: string; password: string; name: string;
+    avatarColor?: string; kelas?: string; phone?: string;
+  };
+  if (!id || !email || !password || !name) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
+  const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
+  if (existing.length > 0) { res.status(409).json({ error: "Email sudah terdaftar." }); return; }
+  const [created] = await db.insert(mcUsersTable).values({
+    id, email: email.toLowerCase().trim(), password, name, role: "student", status: "pending",
+    avatarColor: avatarColor ?? null, kelas: kelas ?? null, phone: phone ?? null,
+  }).returning();
+  const { password: _pw, ...safe } = created;
+  res.status(201).json(safe);
 });
 
 router.post("/mc/users", async (req, res) => {
@@ -62,6 +79,18 @@ router.put("/mc/users/:id", async (req, res) => {
   if (password !== undefined) updates.password = password;
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Tidak ada perubahan." }); return; }
   const [updated] = await db.update(mcUsersTable).set(updates).where(eq(mcUsersTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "User tidak ditemukan." }); return; }
+  const { password: _pw, ...safe } = updated;
+  res.json(safe);
+});
+
+router.put("/mc/users/:id/approve", async (req, res) => {
+  const { id } = req.params;
+  const [updated] = await db
+    .update(mcUsersTable)
+    .set({ status: "active" })
+    .where(eq(mcUsersTable.id, id))
+    .returning();
   if (!updated) { res.status(404).json({ error: "User tidak ditemukan." }); return; }
   const { password: _pw, ...safe } = updated;
   res.json(safe);

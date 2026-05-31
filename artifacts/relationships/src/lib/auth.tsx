@@ -103,11 +103,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Login gagal.";
+      // Return API-specific errors (pending, wrong password) immediately
+      if (msg.includes("menunggu persetujuan") || msg.includes("password salah") || msg.includes("tidak ditemukan")) {
+        return { ok: false, error: msg };
+      }
+      // API unreachable — fall back to localStorage
       const users = read("users", []);
       const found = users.find(
         (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
       );
       if (!found) return { ok: false, error: msg };
+      if (found.status === "pending") {
+        return { ok: false, error: "Akun Anda sedang menunggu persetujuan guru." };
+      }
       write("session", { userId: found.id });
       setUser(found);
       return { ok: true };

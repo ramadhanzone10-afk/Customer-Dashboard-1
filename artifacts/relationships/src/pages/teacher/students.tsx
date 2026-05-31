@@ -17,6 +17,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  UserCheck,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,7 @@ import type {
   Exam,
   ExamSubmission,
   Payment,
+  AppNotification,
 } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 
@@ -81,7 +84,12 @@ export default function TeacherStudents() {
   const [resetPwStudent, setResetPwStudent] = useState<User | null>(null);
 
   const allStudents = useMemo(
-    () => users.filter((u) => u.role === "student"),
+    () => users.filter((u) => u.role === "student" && u.status !== "pending"),
+    [users],
+  );
+
+  const pendingStudents = useMemo(
+    () => users.filter((u) => u.role === "student" && u.status === "pending"),
     [users],
   );
 
@@ -139,6 +147,38 @@ export default function TeacherStudents() {
         : Math.round((completedExams / assignedExams.length) * 100);
 
     return { matPct, avg, examPct, assignedMats, completed, mySubs, assignedExams };
+  }
+
+  async function approveStudent(s: User) {
+    // Update status locally
+    const allUsers = read("users", []);
+    write("users", allUsers.map((u) => u.id === s.id ? { ...u, status: "active" as const } : u));
+
+    // Create payment for current month
+    const month = new Date().toISOString().slice(0, 7);
+    const newPayment: Payment = { id: uid("p_"), userId: s.id, month, amount: 350000, status: "unpaid" };
+    write("payments", [...read("payments", []), newPayment]);
+
+    // Welcome notification
+    const notif: AppNotification = {
+      id: uid("n_"), userId: s.id, type: "payment_due",
+      title: "Akun Disetujui! 🎉",
+      message: "Selamat datang di MathClub! Akun Anda telah disetujui oleh guru. Silakan mulai belajar.",
+      read: false, createdAt: Date.now(),
+    };
+    write("notifications", [...read("notifications", []), notif]);
+
+    // Sync to backend
+    void mcApi.approveUser(s.id).catch(() => {});
+    void mcApi.createPayment(newPayment).catch(() => {});
+    void mcApi.createNotification(notif).catch(() => {});
+  }
+
+  function rejectStudent(s: User) {
+    if (!confirm(`Tolak pendaftaran "${s.name}"?\nAkun akan dihapus permanen.`)) return;
+    const allUsers = read("users", []);
+    write("users", allUsers.filter((u) => u.id !== s.id));
+    void mcApi.deleteUser(s.id).catch(() => {});
   }
 
   function deleteStudent(s: User) {
@@ -231,6 +271,75 @@ export default function TeacherStudents() {
           Tambah Siswa
         </Button>
       </div>
+
+      {/* ── Pending approval section ── */}
+      {pendingStudents.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <h2 className="text-base font-semibold text-amber-700 dark:text-amber-400">
+                Menunggu Persetujuan
+              </h2>
+              <Badge className="border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40">
+                {pendingStudents.length} siswa
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {pendingStudents.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-3 bg-white dark:bg-background rounded-lg p-3 border border-amber-100 dark:border-amber-900"
+                >
+                  <div
+                    className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 text-sm"
+                    style={{ background: s.avatarColor ?? "#f59e0b" }}
+                  >
+                    {s.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{s.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.email}</div>
+                    {(s.kelas || s.phone) && (
+                      <div className="flex gap-3 mt-0.5 text-xs text-muted-foreground">
+                        {s.kelas && (
+                          <span className="flex items-center gap-1">
+                            <GraduationCap className="h-3 w-3" />{s.kelas}
+                          </span>
+                        )}
+                        {s.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3" />{s.phone}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white h-8"
+                      onClick={() => void approveStudent(s)}
+                    >
+                      <UserCheck className="h-3.5 w-3.5 mr-1" />
+                      Setujui
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive border-destructive/30 h-8"
+                      onClick={() => rejectStudent(s)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Tolak
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {grouped.length === 0 && (
         <div className="text-center text-sm text-muted-foreground py-12 border rounded-lg">

@@ -6,6 +6,7 @@ export interface User {
   password: string;
   name: string;
   role: Role;
+  status?: "active" | "pending";
   avatarColor?: string;
   kelas?: string;
   phone?: string;

@@ -6,6 +6,7 @@ export const mcUsersTable = pgTable("mc_users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull(),
+  status: text("status").notNull().default("active"),
   avatarColor: text("avatar_color"),
   kelas: text("kelas"),
   phone: text("phone"),

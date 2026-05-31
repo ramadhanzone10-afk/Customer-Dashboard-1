@@ -23,6 +23,10 @@ export const mcApi = {
     req<ApiUser>("/mc/users", { method: "POST", body: JSON.stringify(user) }),
   updateUser: (id: string, data: Partial<Pick<User, "name" | "avatarColor" | "password">> & { kelas?: string | null; phone?: string | null }) =>
     req<ApiUser>(`/mc/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  registerUser: (user: { id: string; email: string; password: string; name: string; avatarColor?: string; kelas?: string; phone?: string }) =>
+    req<ApiUser>("/mc/auth/register", { method: "POST", body: JSON.stringify(user) }),
+  approveUser: (id: string) =>
+    req<ApiUser>(`/mc/users/${id}/approve`, { method: "PUT" }),
   deleteUser: (id: string) => req<{ ok: boolean }>(`/mc/users/${id}`, { method: "DELETE" }),
 
   // ── Classes ───────────────────────────────────────────────────────────

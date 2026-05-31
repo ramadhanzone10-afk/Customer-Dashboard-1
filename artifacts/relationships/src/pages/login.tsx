@@ -16,9 +16,8 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { read, write, uid } from "@/lib/storage";
+import { read, uid } from "@/lib/storage";
 import { mcApi } from "@/lib/api-client";
-import type { User } from "@/lib/types";
 import logoUrl from "@assets/Logo_MathCourse_1777550046532.png";
 
 const AVATAR_COLORS = [
@@ -42,11 +41,11 @@ export default function LoginPage() {
   const [regPassword, setRegPassword] = useState("");
   const [regConfirm, setRegConfirm] = useState("");
   const [regPhone, setRegPhone] = useState("");
-  const [regRole, setRegRole] = useState<"student" | "teacher">("student");
   const [regKelas, setRegKelas] = useState("");
   const [regShowPw, setRegShowPw] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
   const [regSuccess, setRegSuccess] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
 
   const classes = read("classes", [
     "10 IPA 1", "10 IPA 2", "11 IPA 1", "11 IPA 2", "12 IPA 1", "12 IPA 2",
@@ -63,7 +62,7 @@ export default function LoginPage() {
     setLocation("/");
   }
 
-  function submitRegister(e: React.FormEvent) {
+  async function submitRegister(e: React.FormEvent) {
     e.preventDefault();
     setRegError(null);
 
@@ -71,36 +70,27 @@ export default function LoginPage() {
     if (!regEmail.trim()) { setRegError("Email wajib diisi."); return; }
     if (regPassword.length < 6) { setRegError("Password minimal 6 karakter."); return; }
     if (regPassword !== regConfirm) { setRegError("Konfirmasi password tidak cocok."); return; }
-    const users = read("users", []);
-    const exists = users.find(
-      (u) => u.email.toLowerCase() === regEmail.trim().toLowerCase(),
-    );
-    if (exists) {
-      setRegError("Email sudah terdaftar. Silakan gunakan email lain.");
-      return;
-    }
 
     const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-    const newUser: User = {
+    const newUser = {
       id: uid("u_"),
       email: regEmail.trim().toLowerCase(),
       password: regPassword,
       name: regName.trim(),
-      role: regRole,
       avatarColor: color,
       ...(regPhone.trim() ? { phone: regPhone.trim() } : {}),
-      ...(regRole === "student" && regKelas ? { kelas: regKelas } : {}),
+      ...(regKelas ? { kelas: regKelas } : {}),
     };
 
-    write("users", [...users, newUser]);
-    void mcApi.createUser(newUser).catch(() => {});
-    setRegSuccess(true);
-
-    // Auto-login after 1.2 s
-    setTimeout(async () => {
-      const result = await login(newUser.email, newUser.password);
-      if (result.ok) setLocation("/");
-    }, 1200);
+    setRegLoading(true);
+    try {
+      await mcApi.registerUser(newUser);
+      setRegSuccess(true);
+    } catch (err) {
+      setRegError(err instanceof Error ? err.message : "Pendaftaran gagal. Coba lagi.");
+    } finally {
+      setRegLoading(false);
+    }
   }
 
   return (
@@ -219,17 +209,27 @@ export default function LoginPage() {
 
               {/* ── REGISTER TAB ── */}
               <TabsContent value="register">
-                <h2 className="text-2xl font-bold mb-1">Buat Akun</h2>
+                <h2 className="text-2xl font-bold mb-1">Daftar Akun Siswa</h2>
                 <p className="text-sm text-muted-foreground mb-6">
-                  Daftar sebagai siswa atau guru MathClub.
+                  Daftar sebagai siswa MathClub. Akun aktif setelah disetujui guru.
                 </p>
 
                 {regSuccess ? (
-                  <div className="text-center py-8 space-y-2">
-                    <div className="text-4xl">✓</div>
-                    <div className="font-semibold text-lg">Akun berhasil dibuat!</div>
-                    <div className="text-sm text-muted-foreground">
-                      Mengalihkan ke dashboard...
+                  <div className="text-center py-8 space-y-3">
+                    <div className="text-5xl">🎉</div>
+                    <div className="font-semibold text-lg">Pendaftaran berhasil!</div>
+                    <div className="text-sm text-muted-foreground leading-relaxed">
+                      Akun Anda sedang menunggu persetujuan guru.
+                      <br />
+                      Silakan tunggu konfirmasi sebelum login.
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        className="text-sm text-primary underline underline-offset-2"
+                        onClick={() => window.location.reload()}
+                      >
+                        Kembali ke halaman login
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -239,38 +239,6 @@ export default function LoginPage() {
                         <AlertDescription>{regError}</AlertDescription>
                       </Alert>
                     )}
-
-                    {/* Role selector */}
-                    <div className="space-y-2">
-                      <Label>Daftar sebagai</Label>
-                      <RadioGroup
-                        value={regRole}
-                        onValueChange={(v) =>
-                          setRegRole(v as "student" | "teacher")
-                        }
-                        className="flex gap-4"
-                        data-testid="radio-role"
-                      >
-                        <div className="flex items-center gap-2 flex-1 border rounded-lg p-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                          <RadioGroupItem value="student" id="role-student" />
-                          <Label htmlFor="role-student" className="cursor-pointer">
-                            <div className="font-medium">Siswa</div>
-                            <div className="text-[11px] text-muted-foreground">
-                              Akses materi & ujian
-                            </div>
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2 flex-1 border rounded-lg p-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                          <RadioGroupItem value="teacher" id="role-teacher" />
-                          <Label htmlFor="role-teacher" className="cursor-pointer">
-                            <div className="font-medium">Guru</div>
-                            <div className="text-[11px] text-muted-foreground">
-                              Kelola siswa & materi
-                            </div>
-                          </Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="reg-name">Nama Lengkap</Label>
@@ -314,8 +282,7 @@ export default function LoginPage() {
                       />
                     </div>
 
-                    {regRole === "student" && (
-                      <div className="space-y-2">
+                    <div className="space-y-2">
                         <Label>
                           Kelas{" "}
                           <span className="text-muted-foreground font-normal">
@@ -335,7 +302,6 @@ export default function LoginPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
 
                     <div className="space-y-2">
                       <Label htmlFor="reg-password">Password</Label>
@@ -381,9 +347,10 @@ export default function LoginPage() {
                     <Button
                       type="submit"
                       className="w-full"
+                      disabled={regLoading}
                       data-testid="button-register"
                     >
-                      Buat Akun
+                      {regLoading ? "Mendaftarkan..." : "Daftar Sekarang"}
                     </Button>
                   </form>
                 )}
