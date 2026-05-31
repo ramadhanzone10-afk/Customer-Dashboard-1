@@ -108,7 +108,8 @@ export type NotificationType =
   | "payment_due"
   | "exam_graded"
   | "payment_verified"
-  | "payment_uploaded";
+  | "payment_uploaded"
+  | "announcement";
 
 export interface AppNotification {
   id: string;

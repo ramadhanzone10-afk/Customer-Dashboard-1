@@ -19,6 +19,8 @@ import {
   EyeOff,
   UserCheck,
   Clock,
+  Megaphone,
+  Send,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +83,7 @@ export default function TeacherStudents() {
   const [addOpen, setAddOpen] = useState(false);
   const [classMgrOpen, setClassMgrOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [editStudent, setEditStudent] = useState<User | null>(null);
   const [resetPwStudent, setResetPwStudent] = useState<User | null>(null);
 
@@ -250,6 +254,14 @@ export default function TeacherStudents() {
         </Select>
         <Badge variant="secondary">{filteredStudents.length} siswa</Badge>
         <div className="flex-1" />
+        <Button
+          variant="outline"
+          onClick={() => setAnnouncementOpen(true)}
+          data-testid="button-announcement"
+        >
+          <Megaphone className="h-4 w-4 mr-2" />
+          Pengumuman
+        </Button>
         <Button
           variant="outline"
           onClick={() => setClassMgrOpen(true)}
@@ -587,6 +599,12 @@ export default function TeacherStudents() {
       <ResetPasswordDialog
         student={resetPwStudent}
         onClose={() => setResetPwStudent(null)}
+      />
+      <AnnouncementDialog
+        open={announcementOpen}
+        onOpenChange={setAnnouncementOpen}
+        classes={classes}
+        students={allStudents}
       />
     </div>
   );
@@ -1364,6 +1382,173 @@ function ImportExcelDialog({
                 Import {validCount} Siswa
               </Button>
             )}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AnnouncementDialog({
+  open,
+  onOpenChange,
+  classes,
+  students,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  classes: string[];
+  students: User[];
+}) {
+  const [targetClass, setTargetClass] = useState("all");
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const recipients = useMemo(() => {
+    if (targetClass === "all") return students;
+    if (targetClass === "__no_kelas__") return students.filter((s) => !s.kelas);
+    return students.filter((s) => s.kelas === targetClass);
+  }, [students, targetClass]);
+
+  function reset() {
+    setTargetClass("all");
+    setTitle("");
+    setMessage("");
+    setSending(false);
+    setSent(false);
+  }
+
+  async function handleSend() {
+    if (!title.trim() || !message.trim() || recipients.length === 0) return;
+    setSending(true);
+    const now = Date.now();
+    const notifs: AppNotification[] = recipients.map((s) => ({
+      id: uid("n_"),
+      userId: s.id,
+      type: "announcement" as const,
+      title: title.trim(),
+      message: message.trim(),
+      read: false,
+      createdAt: now,
+    }));
+
+    write("notifications", [...read("notifications", []), ...notifs]);
+
+    try {
+      await mcApi.createNotificationsBatch(notifs);
+    } catch {
+      // fire-and-forget
+    }
+
+    setSending(false);
+    setSent(true);
+  }
+
+  function handleClose(o: boolean) {
+    if (!o) reset();
+    onOpenChange(o);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-primary" />
+            Kirim Pengumuman
+          </DialogTitle>
+        </DialogHeader>
+
+        {sent ? (
+          <div className="text-center py-8 space-y-3">
+            <div className="text-5xl">📢</div>
+            <div className="font-semibold text-lg">Pengumuman Terkirim!</div>
+            <div className="text-sm text-muted-foreground">
+              {recipients.length} siswa telah menerima notifikasi.
+            </div>
+            <Button className="mt-2" onClick={() => { reset(); onOpenChange(false); }}>
+              Tutup
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4 py-1">
+            <div className="space-y-2">
+              <Label>Kirim ke</Label>
+              <Select value={targetClass} onValueChange={setTargetClass}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    Semua Siswa ({students.length} orang)
+                  </SelectItem>
+                  {classes.map((c) => {
+                    const count = students.filter((s) => s.kelas === c).length;
+                    if (count === 0) return null;
+                    return (
+                      <SelectItem key={c} value={c}>
+                        Kelas {c} ({count} orang)
+                      </SelectItem>
+                    );
+                  })}
+                  {students.filter((s) => !s.kelas).length > 0 && (
+                    <SelectItem value="__no_kelas__">
+                      Tanpa Kelas ({students.filter((s) => !s.kelas).length} orang)
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {recipients.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Akan dikirim ke{" "}
+                  <span className="font-medium text-foreground">{recipients.length} siswa</span>
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ann-title">Judul Pengumuman</Label>
+              <Input
+                id="ann-title"
+                placeholder="Contoh: Ujian Tengah Semester Minggu Depan"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ann-msg">Isi Pengumuman</Label>
+              <Textarea
+                id="ann-msg"
+                placeholder="Tulis isi pengumuman di sini..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={4}
+                maxLength={500}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground text-right">
+                {message.length}/500
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!sent && (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleClose(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={handleSend}
+              disabled={sending || !title.trim() || !message.trim() || recipients.length === 0}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {sending ? "Mengirim..." : `Kirim ke ${recipients.length} Siswa`}
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>
