@@ -80,7 +80,7 @@ function Router() {
 function App() {
   useEffect(() => {
     ensureSeed();
-    void ensureDefaultUsers().then(() => ensureBackendContent());
+    void ensureDefaultUsers();
   }, []);
 
   return (

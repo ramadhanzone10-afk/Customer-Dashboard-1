@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Save, User as UserIcon, CheckCircle2, KeyRound, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Save, User as UserIcon, CheckCircle2, KeyRound, Eye, EyeOff, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,11 @@ import { read, write } from "@/lib/storage";
 import { mcApi } from "@/lib/api-client";
 import type { User } from "@/lib/types";
 
+interface TeacherOption {
+  id: string;
+  name: string;
+}
+
 export default function StudentProfile() {
   const { user, refresh } = useAuth();
   const classes = useStore<string[]>("classes", []);
@@ -30,11 +35,22 @@ export default function StudentProfile() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [teacherId, setTeacherId] = useState(user?.teacherId ?? "");
+  const [teacherSaved, setTeacherSaved] = useState(false);
+
   useEffect(() => {
     setName(user?.name ?? "");
     setKelas(user?.kelas ?? "");
     setPhone(user?.phone ?? "");
+    setTeacherId(user?.teacherId ?? "");
   }, [user]);
+
+  useEffect(() => {
+    mcApi.getTeachers().then((list) => {
+      setTeachers(list.map((t) => ({ id: t.id, name: t.name })));
+    }).catch(() => {});
+  }, []);
 
   function save() {
     if (!name.trim()) {
@@ -76,7 +92,25 @@ export default function StudentProfile() {
     setTimeout(() => setSaved(false), 2500);
   }
 
+  function saveTeacher() {
+    if (!teacherId) {
+      alert("Pilih guru terlebih dahulu.");
+      return;
+    }
+    const all = read("users", []);
+    const updated: User[] = all.map((u) =>
+      u.id === user!.id ? { ...u, teacherId } : u,
+    );
+    write("users", updated);
+    void mcApi.updateUser(user!.id, { teacherId }).catch(() => {});
+    refresh();
+    setTeacherSaved(true);
+    setTimeout(() => setTeacherSaved(false), 2500);
+  }
+
   if (!user) return null;
+
+  const currentTeacherName = teachers.find((t) => t.id === (user.teacherId ?? teacherId))?.name;
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -110,6 +144,59 @@ export default function StudentProfile() {
           </AlertDescription>
         </Alert>
       )}
+
+      {teacherSaved && (
+        <Alert className="border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          <AlertDescription className="text-emerald-700 dark:text-emerald-300">
+            Guru pembimbing berhasil diperbarui.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <GraduationCap className="h-4 w-4" />
+            Guru Pembimbing
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {currentTeacherName && (
+            <p className="text-sm text-muted-foreground">
+              Guru saat ini: <span className="font-medium text-foreground">{currentTeacherName}</span>
+            </p>
+          )}
+          <div>
+            <Label>Ganti Guru</Label>
+            <Select
+              value={teacherId || "__none__"}
+              onValueChange={(v) => setTeacherId(v === "__none__" ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih guru pembimbing" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Pilih guru —</SelectItem>
+                {teachers.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {teachers.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Belum ada guru yang terdaftar.
+              </p>
+            )}
+          </div>
+          <Button onClick={saveTeacher} variant="outline" className="w-full">
+            <Save className="h-4 w-4 mr-2" />
+            Simpan Guru
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

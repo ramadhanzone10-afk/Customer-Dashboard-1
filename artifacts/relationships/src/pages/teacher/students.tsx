@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useStore } from "@/lib/auth";
+import { useStore, useAuth } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import { mcApi } from "@/lib/api-client";
 import type {
@@ -77,6 +77,7 @@ export default function TeacherStudents() {
   const progress = useStore<MaterialProgress[]>("materialProgress", []);
   const exams = useStore<Exam[]>("exams", []);
   const submissions = useStore<ExamSubmission[]>("examSubmissions", []);
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
   const [selected, setSelected] = useState<User | null>(null);
@@ -88,13 +89,13 @@ export default function TeacherStudents() {
   const [resetPwStudent, setResetPwStudent] = useState<User | null>(null);
 
   const allStudents = useMemo(
-    () => users.filter((u) => u.role === "student" && u.status !== "pending"),
-    [users],
+    () => users.filter((u) => u.role === "student" && u.status !== "pending" && u.teacherId === user?.id),
+    [users, user],
   );
 
   const pendingStudents = useMemo(
-    () => users.filter((u) => u.role === "student" && u.status === "pending"),
-    [users],
+    () => users.filter((u) => u.role === "student" && u.status === "pending" && u.teacherId === user?.id),
+    [users, user],
   );
 
   const filteredStudents = useMemo(
@@ -579,6 +580,7 @@ export default function TeacherStudents() {
         open={addOpen}
         onOpenChange={setAddOpen}
         classes={classes}
+        teacherId={user?.id ?? ""}
       />
       <ClassManagerDialog
         open={classMgrOpen}
@@ -590,6 +592,7 @@ export default function TeacherStudents() {
         open={importOpen}
         onOpenChange={setImportOpen}
         classes={classes}
+        teacherId={user?.id ?? ""}
       />
       <EditStudentDialog
         student={editStudent}
@@ -614,10 +617,12 @@ function AddStudentDialog({
   open,
   onOpenChange,
   classes,
+  teacherId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   classes: string[];
+  teacherId: string;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -658,6 +663,7 @@ function AddStudentDialog({
       avatarColor: color,
       kelas: kelas.trim() || undefined,
       phone: phone.trim() || undefined,
+      teacherId: teacherId || undefined,
     };
     write("users", [...allUsers, newStudent]);
     void mcApi.createUser(newStudent).catch(() => {});
@@ -1159,10 +1165,12 @@ function ImportExcelDialog({
   open,
   onOpenChange,
   classes,
+  teacherId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   classes: string[];
+  teacherId: string;
 }) {
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [done, setDone] = useState(false);
@@ -1232,6 +1240,7 @@ function ImportExcelDialog({
       avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
       kelas: r.kelas || undefined,
       phone: r.hp || undefined,
+      teacherId: teacherId || undefined,
     }));
 
     write("users", [...allUsers, ...newStudents]);

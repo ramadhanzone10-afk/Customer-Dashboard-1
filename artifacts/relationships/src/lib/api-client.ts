@@ -21,7 +21,7 @@ export const mcApi = {
     req<ApiUser>("/mc/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   createUser: (user: Omit<User, "createdAt"> & { password: string }) =>
     req<ApiUser>("/mc/users", { method: "POST", body: JSON.stringify(user) }),
-  updateUser: (id: string, data: Partial<Pick<User, "name" | "avatarColor" | "password">> & { kelas?: string | null; phone?: string | null }) =>
+  updateUser: (id: string, data: Partial<Pick<User, "name" | "avatarColor" | "password">> & { kelas?: string | null; phone?: string | null; teacherId?: string | null }) =>
     req<ApiUser>(`/mc/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   registerUser: (user: { id: string; email: string; password: string; name: string; avatarColor?: string; kelas?: string; phone?: string; teacherId?: string }) =>
     req<ApiUser>("/mc/auth/register", { method: "POST", body: JSON.stringify(user) }),
