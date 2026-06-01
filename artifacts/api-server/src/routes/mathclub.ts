@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, mcUsersTable, mcSettingsTable, mcClassMessagesTable } from "@workspace/db";
+import { db, mcUsersTable, mcSettingsTable, mcClassMessagesTable, mcNotificationsTable } from "@workspace/db";
 import { eq, asc, and } from "drizzle-orm";
 
 const router = Router();
@@ -61,6 +61,18 @@ router.post("/mc/auth/register", async (req, res) => {
     avatarColor: avatarColor ?? null, kelas: kelas ?? null, phone: phone ?? null,
     teacherId: teacherId ?? null,
   }).returning();
+  if (teacherId) {
+    await db.insert(mcNotificationsTable).values({
+      id: `n_reg_${id}`,
+      userId: teacherId,
+      type: "new_student",
+      title: "Siswa Baru Mendaftar",
+      message: `${name} memilih Anda sebagai guru pembimbing dan menunggu persetujuan.`,
+      link: "/teacher/students",
+      read: false,
+      createdAt: Date.now(),
+    }).catch(() => {});
+  }
   const { password: _pw, ...safe } = created;
   res.status(201).json(safe);
 });
@@ -116,6 +128,18 @@ router.put("/mc/users/:id", async (req, res) => {
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Tidak ada perubahan." }); return; }
   const [updated] = await db.update(mcUsersTable).set(updates).where(eq(mcUsersTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "User tidak ditemukan." }); return; }
+  if (teacherId && updated.role === "student") {
+    await db.insert(mcNotificationsTable).values({
+      id: `n_chg_${id}_${Date.now()}`,
+      userId: teacherId,
+      type: "new_student",
+      title: "Siswa Baru Bergabung",
+      message: `${updated.name} memilih Anda sebagai guru pembimbing.`,
+      link: "/teacher/students",
+      read: false,
+      createdAt: Date.now(),
+    }).catch(() => {});
+  }
   const { password: _pw, ...safe } = updated;
   res.json(safe);
 });

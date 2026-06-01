@@ -220,21 +220,37 @@ export function Layout({ children }: { children: ReactNode }) {
                         Belum ada notifikasi.
                       </div>
                     )}
-                    {myNotifs.slice(0, 12).map((n) => (
-                      <div
-                        key={n.id}
-                        className={cn(
-                          "px-3 py-2 border-b last:border-0 text-sm",
-                          !n.read && "bg-accent/30",
-                        )}
-                      >
-                        <div className="font-medium">{n.title}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
-                        <div className="text-[10px] text-muted-foreground mt-1">
-                          {formatRelative(n.createdAt)}
+                    {myNotifs.slice(0, 12).map((n) => {
+                      const inner = (
+                        <div
+                          className={cn(
+                            "px-3 py-2 border-b last:border-0 text-sm",
+                            !n.read && "bg-accent/30",
+                            n.link && "cursor-pointer hover:bg-accent/50 transition-colors",
+                          )}
+                        >
+                          <div className="font-medium flex items-center gap-1.5">
+                            {n.type === "new_student" && (
+                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 shrink-0">
+                                <Users className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                            {n.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
+                          <div className="text-[10px] text-muted-foreground mt-1">
+                            {formatRelative(n.createdAt)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                      return n.link ? (
+                        <Link key={n.id} href={n.link}>
+                          {inner}
+                        </Link>
+                      ) : (
+                        <div key={n.id}>{inner}</div>
+                      );
+                    })}
                   </ScrollArea>
                 </DropdownMenuContent>
               </DropdownMenu>
