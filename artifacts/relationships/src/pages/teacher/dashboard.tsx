@@ -7,22 +7,34 @@ import {
   Wallet,
   TrendingUp,
   AlertTriangle,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useStore } from "@/lib/auth";
-import type { User, Material, Exam, ExamSubmission, Payment } from "@/lib/types";
+import { useStore, useAuth } from "@/lib/auth";
+import type { User, Material, MaterialProgress, Exam, ExamSubmission, Payment } from "@/lib/types";
 import { formatCurrency, formatMonth, formatRelative } from "@/lib/format";
 
 export default function TeacherDashboard() {
+  const { user } = useAuth();
   const users = useStore<User[]>("users", []);
   const materials = useStore<Material[]>("materials", []);
+  const progress = useStore<MaterialProgress[]>("materialProgress", []);
   const exams = useStore<Exam[]>("exams", []);
   const submissions = useStore<ExamSubmission[]>("examSubmissions", []);
   const payments = useStore<Payment[]>("payments", []);
 
-  const students = useMemo(() => users.filter((u) => u.role === "student"), [users]);
+  const myStudents = useMemo(
+    () => users.filter((u) => u.role === "student" && u.status !== "pending" && u.teacherId === user?.id),
+    [users, user],
+  );
+  const pendingStudents = useMemo(
+    () => users.filter((u) => u.role === "student" && u.status === "pending" && u.teacherId === user?.id),
+    [users, user],
+  );
+  const myStudentIds = useMemo(() => new Set(myStudents.map((s) => s.id)), [myStudents]);
 
   const currentMonth = useMemo(() => {
     const d = new Date();
@@ -30,7 +42,8 @@ export default function TeacherDashboard() {
   }, []);
 
   const stats = useMemo(() => {
-    const totalGraded = submissions.filter((s) => s.fullyGraded);
+    const mySubmissions = submissions.filter((s) => myStudentIds.has(s.userId));
+    const totalGraded = mySubmissions.filter((s) => s.fullyGraded);
     const avgScore =
       totalGraded.length === 0
         ? 0
@@ -38,22 +51,35 @@ export default function TeacherDashboard() {
             totalGraded.reduce((acc, s) => acc + (s.totalScore / s.maxScore) * 100, 0) /
               totalGraded.length,
           );
-    const pendingGrading = submissions.filter((s) => !s.fullyGraded).length;
+    const pendingGrading = mySubmissions.filter((s) => !s.fullyGraded).length;
 
-    const now = Date.now();
     const recentMonths = [-2, -1, 0].map((offset) => {
       const d = new Date();
       d.setMonth(d.getMonth() + offset);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     });
-    const monthPayments = payments.filter((p) => recentMonths.includes(p.month));
+    const myPayments = payments.filter((p) => myStudentIds.has(p.userId));
+    const monthPayments = myPayments.filter((p) => recentMonths.includes(p.month));
     const collected = monthPayments
       .filter((p) => p.status === "paid")
       .reduce((acc, p) => acc + p.amount, 0);
-    const pendingPayments = payments.filter((p) => p.status === "pending").length;
-    const unpaidThisMonth = payments.filter(
+    const pendingPayments = myPayments.filter((p) => p.status === "pending").length;
+    const unpaidThisMonth = myPayments.filter(
       (p) => p.month === currentMonth && p.status === "unpaid",
     );
+
+    // Material completion: % of (student, material) pairs completed
+    const myMaterials = materials.filter((m) =>
+      m.assignedTo.some((id) => myStudentIds.has(id)),
+    );
+    const totalPairs = myMaterials.reduce(
+      (acc, m) => acc + m.assignedTo.filter((id) => myStudentIds.has(id)).length,
+      0,
+    );
+    const completedPairs = progress.filter(
+      (p) => myStudentIds.has(p.userId) && myMaterials.some((m) => m.id === p.materialId),
+    ).length;
+    const completionPct = totalPairs === 0 ? 0 : Math.round((completedPairs / totalPairs) * 100);
 
     return {
       avgScore,
@@ -61,13 +87,18 @@ export default function TeacherDashboard() {
       collected,
       pendingPayments,
       unpaidThisMonth,
-      now,
+      completionPct,
+      totalPairs,
     };
-  }, [submissions, payments, currentMonth]);
+  }, [submissions, payments, materials, progress, myStudentIds, currentMonth]);
 
   const recentSubmissions = useMemo(
-    () => [...submissions].sort((a, b) => b.submittedAt - a.submittedAt).slice(0, 5),
-    [submissions],
+    () =>
+      [...submissions]
+        .filter((s) => myStudentIds.has(s.userId))
+        .sort((a, b) => b.submittedAt - a.submittedAt)
+        .slice(0, 5),
+    [submissions, myStudentIds],
   );
 
   return (
@@ -75,15 +106,38 @@ export default function TeacherDashboard() {
       <div>
         <h1 className="text-2xl font-bold">Selamat datang kembali!</h1>
         <p className="text-muted-foreground text-sm">
-          Ringkasan aktivitas kelas Anda hari ini.
+          Ringkasan aktivitas siswa Anda hari ini.
         </p>
       </div>
 
+      {/* Pending approval alert */}
+      {pendingStudents.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20">
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  {pendingStudents.length} siswa menunggu persetujuan
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {pendingStudents.map((s) => s.name).join(", ")}
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm" className="bg-amber-600 hover:bg-amber-700 text-white shrink-0">
+              <Link href="/teacher/students">Approve Sekarang</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<Users className="h-5 w-5" />}
           label="Siswa Aktif"
-          value={students.length.toString()}
+          value={myStudents.length.toString()}
           accent="from-indigo-500 to-purple-500"
         />
         <StatCard
@@ -100,7 +154,7 @@ export default function TeacherDashboard() {
         />
         <StatCard
           icon={<Wallet className="h-5 w-5" />}
-          label="Total Tertagih"
+          label="Tertagih (3 bln)"
           value={formatCurrency(stats.collected)}
           accent="from-pink-500 to-rose-500"
           small
@@ -110,7 +164,7 @@ export default function TeacherDashboard() {
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Ujian Terbaru</CardTitle>
+            <CardTitle className="text-base">Ujian Terbaru — Siswa Saya</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/teacher/exams">Lihat semua</Link>
             </Button>
@@ -118,7 +172,7 @@ export default function TeacherDashboard() {
           <CardContent>
             {recentSubmissions.length === 0 && (
               <div className="text-sm text-muted-foreground py-6 text-center">
-                Belum ada submission ujian.
+                Belum ada submission ujian dari siswa Anda.
               </div>
             )}
             {recentSubmissions.map((sub) => {
@@ -162,15 +216,39 @@ export default function TeacherDashboard() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                Performa Kelas
+                Rekap Siswa Saya
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <Stat label="Rata-rata nilai" value={`${stats.avgScore}/100`} />
+                <Stat label="Rata-rata nilai ujian" value={`${stats.avgScore}/100`} />
                 <Stat label="Perlu dikoreksi" value={stats.pendingGrading.toString()} />
                 <Stat label="Pembayaran pending" value={stats.pendingPayments.toString()} />
+                <Stat
+                  label="Penyelesaian materi"
+                  value={stats.totalPairs === 0 ? "—" : `${stats.completionPct}%`}
+                  highlight={stats.completionPct >= 70}
+                />
               </div>
+
+              {/* Progress bar for material completion */}
+              {stats.totalPairs > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Materi selesai
+                    </span>
+                    <span>{stats.completionPct}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                      style={{ width: `${stats.completionPct}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -239,11 +317,13 @@ function StatCard({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-semibold">{value}</span>
+      <span className={`text-sm font-semibold ${highlight ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }

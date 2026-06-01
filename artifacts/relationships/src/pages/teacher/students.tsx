@@ -154,6 +154,13 @@ export default function TeacherStudents() {
     return { matPct, avg, examPct, assignedMats, completed, mySubs, assignedExams };
   }
 
+  async function approveAllStudents() {
+    if (!confirm(`Setujui semua ${pendingStudents.length} siswa sekaligus?`)) return;
+    for (const s of pendingStudents) {
+      await approveStudent(s);
+    }
+  }
+
   async function approveStudent(s: User) {
     // Update status locally
     const allUsers = read("users", []);
@@ -289,14 +296,26 @@ export default function TeacherStudents() {
       {pendingStudents.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <h2 className="text-base font-semibold text-amber-700 dark:text-amber-400">
-                Menunggu Persetujuan
-              </h2>
-              <Badge className="border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40">
-                {pendingStudents.length} siswa
-              </Badge>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <h2 className="text-base font-semibold text-amber-700 dark:text-amber-400">
+                  Menunggu Persetujuan
+                </h2>
+                <Badge className="border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40">
+                  {pendingStudents.length} siswa
+                </Badge>
+              </div>
+              {pendingStudents.length > 1 && (
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white h-8 shrink-0"
+                  onClick={() => void approveAllStudents()}
+                >
+                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                  Setujui Semua
+                </Button>
+              )}
             </div>
             <div className="space-y-2">
               {pendingStudents.map((s) => (
