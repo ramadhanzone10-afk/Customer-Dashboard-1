@@ -1475,7 +1475,7 @@ function AnnouncementDialog({
             <div className="text-5xl">📢</div>
             <div className="font-semibold text-lg">Pengumuman Terkirim!</div>
             <div className="text-sm text-muted-foreground">
-              {recipients.length} siswa telah menerima notifikasi.
+              {recipients.length} siswa Anda telah menerima notifikasi.
             </div>
             <Button className="mt-2" onClick={() => { reset(); onOpenChange(false); }}>
               Tutup
@@ -1483,6 +1483,18 @@ function AnnouncementDialog({
           </div>
         ) : (
           <div className="space-y-4 py-1">
+            <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-3 py-2 flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+              <Users className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Pengumuman hanya dikirim ke <strong>{students.length} siswa</strong> yang terhubung dengan Anda. Siswa dari guru lain tidak akan menerima.
+              </span>
+            </div>
+
+            {students.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                Belum ada siswa yang terhubung dengan Anda.
+              </div>
+            ) : (
             <div className="space-y-2">
               <Label>Kirim ke</Label>
               <Select value={targetClass} onValueChange={setTargetClass}>
@@ -1491,7 +1503,7 @@ function AnnouncementDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">
-                    Semua Siswa ({students.length} orang)
+                    Semua Siswa Saya ({students.length} orang)
                   </SelectItem>
                   {classes.map((c) => {
                     const count = students.filter((s) => s.kelas === c).length;
@@ -1510,12 +1522,34 @@ function AnnouncementDialog({
                 </SelectContent>
               </Select>
               {recipients.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Akan dikirim ke{" "}
-                  <span className="font-medium text-foreground">{recipients.length} siswa</span>
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Akan dikirim ke{" "}
+                    <span className="font-medium text-foreground">{recipients.length} siswa</span>:
+                  </p>
+                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                    {recipients.slice(0, 20).map((s) => (
+                      <span
+                        key={s.id}
+                        className="inline-flex items-center gap-1 text-[11px] bg-muted rounded-full px-2 py-0.5"
+                      >
+                        <span
+                          className="h-3 w-3 rounded-full inline-block shrink-0"
+                          style={{ background: s.avatarColor ?? "#6366f1" }}
+                        />
+                        {s.name}
+                      </span>
+                    ))}
+                    {recipients.length > 20 && (
+                      <span className="text-[11px] text-muted-foreground px-1">
+                        +{recipients.length - 20} lainnya
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="ann-title">Judul Pengumuman</Label>
