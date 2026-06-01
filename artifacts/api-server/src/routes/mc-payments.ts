@@ -14,6 +14,7 @@ router.post("/mc/payments", async (req, res) => {
   if (!body.id || !body.userId || !body.month) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const [created] = await db.insert(mcPaymentsTable).values({
     ...body,
+    paymentMethod: body.paymentMethod ?? null,
     proofFileName: body.proofFileName ?? null, proofDataUrl: body.proofDataUrl ?? null,
     uploadedAt: body.uploadedAt ?? null, verifiedAt: body.verifiedAt ?? null, notes: body.notes ?? null,
   }).returning();
@@ -37,7 +38,9 @@ router.put("/mc/payments/:id", async (req, res) => {
   };
   const { notification, notifications, ...updates } = body;
   const [updated] = await db.update(mcPaymentsTable).set({
-    ...updates, proofFileName: updates.proofFileName ?? null, proofDataUrl: updates.proofDataUrl ?? null,
+    ...updates,
+    paymentMethod: updates.paymentMethod ?? null,
+    proofFileName: updates.proofFileName ?? null, proofDataUrl: updates.proofDataUrl ?? null,
     uploadedAt: updates.uploadedAt ?? null, verifiedAt: updates.verifiedAt ?? null, notes: updates.notes ?? null,
   }).where(eq(mcPaymentsTable.id, req.params.id)).returning();
   if (!updated) { res.status(404).json({ error: "Pembayaran tidak ditemukan." }); return; }

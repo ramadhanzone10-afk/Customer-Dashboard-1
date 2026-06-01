@@ -88,6 +88,7 @@ export interface Payment {
   month: string;
   amount: number;
   status: PaymentStatus;
+  paymentMethod?: string;
   proofFileName?: string;
   proofDataUrl?: string;
   uploadedAt?: number;

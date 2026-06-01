@@ -54,6 +54,7 @@ export const mcPaymentsTable = pgTable("mc_payments", {
   month: text("month").notNull(),
   amount: integer("amount").notNull().default(350000),
   status: text("status").notNull().default("unpaid"),
+  paymentMethod: text("payment_method"),
   proofFileName: text("proof_file_name"),
   proofDataUrl: text("proof_data_url"),
   uploadedAt: bigint("uploaded_at", { mode: "number" }),

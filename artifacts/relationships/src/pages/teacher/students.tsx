@@ -88,6 +88,25 @@ export default function TeacherStudents() {
   const [editStudent, setEditStudent] = useState<User | null>(null);
   const [resetPwStudent, setResetPwStudent] = useState<User | null>(null);
 
+  function exportCSV() {
+    const headers = ["Nama", "Email", "Kelas", "Status", "No HP"];
+    const rows = allStudents.map((s) => [
+      `"${s.name.replace(/"/g, '""')}"`,
+      `"${s.email.replace(/"/g, '""')}"`,
+      `"${(s.kelas ?? "-").replace(/"/g, '""')}"`,
+      s.status === "active" ? "Aktif" : "Tidak Aktif",
+      `"${(s.phone ?? "-").replace(/"/g, '""')}"`,
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `siswa-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const allStudents = useMemo(
     () => users.filter((u) => u.role === "student" && u.status !== "pending" && u.teacherId === user?.id),
     [users, user],
@@ -277,6 +296,14 @@ export default function TeacherStudents() {
         >
           <Settings className="h-4 w-4 mr-2" />
           Kelola Kelas
+        </Button>
+        <Button
+          variant="outline"
+          onClick={exportCSV}
+          data-testid="button-export-csv"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
         </Button>
         <Button
           variant="outline"
