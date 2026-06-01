@@ -10,6 +10,7 @@ export const mcUsersTable = pgTable("mc_users", {
   avatarColor: text("avatar_color"),
   kelas: text("kelas"),
   phone: text("phone"),
+  teacherId: text("teacher_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

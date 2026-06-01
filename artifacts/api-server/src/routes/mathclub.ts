@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, mcUsersTable, mcSettingsTable, mcClassMessagesTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -11,6 +11,8 @@ const DEFAULT_CLASSES: string[] = [
 ];
 
 const CLASSES_KEY = "mc_classes";
+const TEACHER_CODE_KEY = "teacher_registration_code";
+const DEFAULT_TEACHER_CODE = "GURU2024";
 
 async function getClasses(): Promise<string[]> {
   const [row] = await db.select().from(mcSettingsTable).where(eq(mcSettingsTable.key, CLASSES_KEY));
@@ -18,9 +20,22 @@ async function getClasses(): Promise<string[]> {
   try { return JSON.parse(row.value) as string[]; } catch { return DEFAULT_CLASSES; }
 }
 
+async function getTeacherCode(): Promise<string> {
+  const [row] = await db.select().from(mcSettingsTable).where(eq(mcSettingsTable.key, TEACHER_CODE_KEY));
+  if (!row) return DEFAULT_TEACHER_CODE;
+  return row.value;
+}
+
 router.get("/mc/users", async (req, res) => {
   const users = await db.select().from(mcUsersTable);
   res.json(users.map(({ password: _pw, ...u }) => u));
+});
+
+router.get("/mc/teachers", async (_req, res) => {
+  type UserRow = typeof mcUsersTable.$inferSelect;
+  const teachers: UserRow[] = await db.select().from(mcUsersTable)
+    .where(and(eq(mcUsersTable.role, "teacher"), eq(mcUsersTable.status, "active")));
+  res.json(teachers.map(({ password: _pw, ...u }: UserRow) => u));
 });
 
 router.post("/mc/auth/login", async (req, res) => {
@@ -34,9 +49,9 @@ router.post("/mc/auth/login", async (req, res) => {
 });
 
 router.post("/mc/auth/register", async (req, res) => {
-  const { id, email, password, name, avatarColor, kelas, phone } = req.body as {
+  const { id, email, password, name, avatarColor, kelas, phone, teacherId } = req.body as {
     id: string; email: string; password: string; name: string;
-    avatarColor?: string; kelas?: string; phone?: string;
+    avatarColor?: string; kelas?: string; phone?: string; teacherId?: string;
   };
   if (!id || !email || !password || !name) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
@@ -44,15 +59,34 @@ router.post("/mc/auth/register", async (req, res) => {
   const [created] = await db.insert(mcUsersTable).values({
     id, email: email.toLowerCase().trim(), password, name, role: "student", status: "pending",
     avatarColor: avatarColor ?? null, kelas: kelas ?? null, phone: phone ?? null,
+    teacherId: teacherId ?? null,
+  }).returning();
+  const { password: _pw, ...safe } = created;
+  res.status(201).json(safe);
+});
+
+router.post("/mc/auth/register-teacher", async (req, res) => {
+  const { id, email, password, name, avatarColor, phone, code } = req.body as {
+    id: string; email: string; password: string; name: string;
+    avatarColor?: string; phone?: string; code: string;
+  };
+  if (!id || !email || !password || !name || !code) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
+  const validCode = await getTeacherCode();
+  if (code.trim() !== validCode) { res.status(403).json({ error: "Kode registrasi guru tidak valid." }); return; }
+  const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
+  if (existing.length > 0) { res.status(409).json({ error: "Email sudah terdaftar." }); return; }
+  const [created] = await db.insert(mcUsersTable).values({
+    id, email: email.toLowerCase().trim(), password, name, role: "teacher", status: "active",
+    avatarColor: avatarColor ?? null, phone: phone ?? null,
   }).returning();
   const { password: _pw, ...safe } = created;
   res.status(201).json(safe);
 });
 
 router.post("/mc/users", async (req, res) => {
-  const { id, email, password, name, role, avatarColor, kelas, phone } = req.body as {
+  const { id, email, password, name, role, avatarColor, kelas, phone, teacherId } = req.body as {
     id: string; email: string; password: string; name: string;
-    role: string; avatarColor?: string; kelas?: string; phone?: string;
+    role: string; avatarColor?: string; kelas?: string; phone?: string; teacherId?: string;
   };
   if (!id || !email || !password || !name || !role) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
@@ -60,6 +94,7 @@ router.post("/mc/users", async (req, res) => {
   const [created] = await db.insert(mcUsersTable).values({
     id, email: email.toLowerCase().trim(), password, name, role,
     avatarColor: avatarColor ?? null, kelas: kelas ?? null, phone: phone ?? null,
+    teacherId: teacherId ?? null,
   }).returning();
   const { password: _pw, ...safe } = created;
   res.status(201).json(safe);
@@ -67,9 +102,9 @@ router.post("/mc/users", async (req, res) => {
 
 router.put("/mc/users/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, kelas, phone, avatarColor, password } = req.body as {
+  const { name, kelas, phone, avatarColor, password, teacherId } = req.body as {
     name?: string; kelas?: string | null; phone?: string | null;
-    avatarColor?: string; password?: string;
+    avatarColor?: string; password?: string; teacherId?: string | null;
   };
   const updates: Partial<typeof mcUsersTable.$inferInsert> = {};
   if (name !== undefined) updates.name = name;
@@ -77,6 +112,7 @@ router.put("/mc/users/:id", async (req, res) => {
   if (phone !== undefined) updates.phone = phone ?? null;
   if (avatarColor !== undefined) updates.avatarColor = avatarColor;
   if (password !== undefined) updates.password = password;
+  if (teacherId !== undefined) updates.teacherId = teacherId ?? null;
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Tidak ada perubahan." }); return; }
   const [updated] = await db.update(mcUsersTable).set(updates).where(eq(mcUsersTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "User tidak ditemukan." }); return; }
@@ -108,7 +144,7 @@ router.get("/mc/messages/:kelas", async (req, res) => {
     .from(mcClassMessagesTable)
     .where(eq(mcClassMessagesTable.kelas, kelas))
     .orderBy(asc(mcClassMessagesTable.createdAt));
-  res.json(rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt).getTime() })));
+  res.json(rows.map((r: typeof mcClassMessagesTable.$inferSelect) => ({ ...r, createdAt: new Date(r.createdAt).getTime() })));
 });
 
 router.post("/mc/messages", async (req, res) => {
@@ -141,6 +177,19 @@ router.put("/mc/classes", async (req, res) => {
   await db.insert(mcSettingsTable).values({ key: CLASSES_KEY, value: JSON.stringify(classes) })
     .onConflictDoUpdate({ target: mcSettingsTable.key, set: { value: JSON.stringify(classes) } });
   res.json(classes);
+});
+
+router.get("/mc/teacher-code", async (_req, res) => {
+  const code = await getTeacherCode();
+  res.json({ code });
+});
+
+router.put("/mc/teacher-code", async (req, res) => {
+  const { code } = req.body as { code: string };
+  if (!code?.trim()) { res.status(400).json({ error: "Kode tidak boleh kosong." }); return; }
+  await db.insert(mcSettingsTable).values({ key: TEACHER_CODE_KEY, value: code.trim() })
+    .onConflictDoUpdate({ target: mcSettingsTable.key, set: { value: code.trim() } });
+  res.json({ code: code.trim() });
 });
 
 export default router;

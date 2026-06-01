@@ -10,6 +10,7 @@ export interface User {
   avatarColor?: string;
   kelas?: string;
   phone?: string;
+  teacherId?: string;
 }
 
 export interface Material {

@@ -284,12 +284,12 @@ export function ensureSeed() {
 
 const DEFAULT_SEED_USERS: Array<{
   id: string; email: string; password: string; name: string;
-  role: string; avatarColor: string; kelas?: string; phone?: string;
+  role: string; avatarColor: string; kelas?: string; phone?: string; teacherId?: string;
 }> = [
   { id: "u_teacher", email: "guru@mathclub.id", password: "guru123", name: "Pak Budi", role: "teacher", avatarColor: "#6366f1" },
-  { id: "u_andi", email: "andi@mathclub.id", password: "siswa123", name: "Andi Pratama", role: "student", avatarColor: "#10b981", kelas: "X-1", phone: "081234567890" },
-  { id: "u_siti", email: "siti@mathclub.id", password: "siswa123", name: "Siti Nurhaliza", role: "student", avatarColor: "#f59e0b", kelas: "XI-1", phone: "081298765432" },
-  { id: "u_rudi", email: "rudi@mathclub.id", password: "siswa123", name: "Rudi Hartono", role: "student", avatarColor: "#ec4899", kelas: "XII-1", phone: "081345678910" },
+  { id: "u_andi", email: "andi@mathclub.id", password: "siswa123", name: "Andi Pratama", role: "student", avatarColor: "#10b981", kelas: "X-1", phone: "081234567890", teacherId: "u_teacher" },
+  { id: "u_siti", email: "siti@mathclub.id", password: "siswa123", name: "Siti Nurhaliza", role: "student", avatarColor: "#f59e0b", kelas: "XI-1", phone: "081298765432", teacherId: "u_teacher" },
+  { id: "u_rudi", email: "rudi@mathclub.id", password: "siswa123", name: "Rudi Hartono", role: "student", avatarColor: "#ec4899", kelas: "XII-1", phone: "081345678910", teacherId: "u_teacher" },
 ];
 
 export async function ensureDefaultUsers() {
