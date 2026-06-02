@@ -1,8 +1,16 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env["JWT_SECRET"] ?? "mc-dev-secret-change-in-production";
-const JWT_EXPIRES = "7d";
+function getSecret(): string {
+  const secret = process.env["JWT_SECRET"];
+  if (!secret) {
+    if (process.env["NODE_ENV"] === "production") {
+      throw new Error("JWT_SECRET environment variable is required in production.");
+    }
+    return "mc-dev-only-secret-not-for-production";
+  }
+  return secret;
+}
 
 export interface JwtPayload {
   userId: string;
@@ -10,11 +18,11 @@ export interface JwtPayload {
 }
 
 export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, getSecret()) as JwtPayload;
 }
 
 declare module "express-serve-static-core" {

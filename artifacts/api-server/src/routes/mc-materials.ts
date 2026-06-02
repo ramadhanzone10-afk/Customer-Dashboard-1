@@ -1,27 +1,31 @@
 import { Router } from "express";
 import { db, mcMaterialsTable, mcMaterialProgressTable, mcNotificationsTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireTeacher } from "../lib/auth";
 
 const router = Router();
-router.use(requireAuth);
 
-router.get("/mc/materials", async (_req, res) => {
+// Read: authenticated users get all assigned materials
+// (frontend filters by assignedTo; teacher sees all for management)
+router.get("/mc/materials", requireAuth, async (_req, res) => {
   const rows = await db.select().from(mcMaterialsTable);
   res.json(rows.map((r) => ({ ...r, assignedTo: r.assignedTo as string[] })));
 });
 
-router.post("/mc/materials", async (req, res) => {
+// Create/update/delete: teacher only
+router.post("/mc/materials", requireTeacher, async (req, res) => {
   const m = req.body as {
     id: string; title: string; description: string; content: string;
+    subject?: string; bab?: string;
     fileName?: string; fileDataUrl?: string; videoUrl?: string;
     videoFileName?: string; videoDataUrl?: string; timerMinutes?: number;
     createdBy: string; assignedTo: string[]; createdAt: number;
     notifications?: { id: string; userId: string; type: string; title: string; message: string; link?: string; createdAt: number }[];
   };
-  if (!m.id || !m.title || !m.createdBy) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
+  if (!m.id || !m.title) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
+  const createdBy = req.jwtUser!.userId;
   const [created] = await db.insert(mcMaterialsTable).values({
-    ...m, assignedTo: m.assignedTo ?? [], timerMinutes: m.timerMinutes ?? null,
+    ...m, createdBy, assignedTo: m.assignedTo ?? [], timerMinutes: m.timerMinutes ?? null,
     fileName: m.fileName ?? null, fileDataUrl: m.fileDataUrl ?? null,
     videoUrl: m.videoUrl ?? null, videoFileName: m.videoFileName ?? null, videoDataUrl: m.videoDataUrl ?? null,
   }).returning();
@@ -31,7 +35,7 @@ router.post("/mc/materials", async (req, res) => {
   res.status(201).json({ ...created, assignedTo: created.assignedTo as string[] });
 });
 
-router.put("/mc/materials/:id", async (req, res) => {
+router.put("/mc/materials/:id", requireTeacher, async (req, res) => {
   const m = req.body as Partial<typeof mcMaterialsTable.$inferInsert>;
   const [updated] = await db.update(mcMaterialsTable).set({
     ...m, assignedTo: m.assignedTo ?? undefined,
@@ -40,20 +44,27 @@ router.put("/mc/materials/:id", async (req, res) => {
   res.json({ ...updated, assignedTo: updated.assignedTo as string[] });
 });
 
-router.delete("/mc/materials/:id", async (req, res) => {
+router.delete("/mc/materials/:id", requireTeacher, async (req, res) => {
   await db.delete(mcMaterialsTable).where(eq(mcMaterialsTable.id, req.params.id));
   await db.delete(mcMaterialProgressTable).where(eq(mcMaterialProgressTable.materialId, req.params.id));
   res.json({ ok: true });
 });
 
-router.get("/mc/material-progress", async (_req, res) => {
+// Material progress: authenticated; students may only record their own progress
+router.get("/mc/material-progress", requireAuth, async (req, res) => {
   const rows = await db.select().from(mcMaterialProgressTable);
-  res.json(rows);
+  if (req.jwtUser!.role === "teacher") {
+    res.json(rows);
+  } else {
+    res.json(rows.filter((r) => r.userId === req.jwtUser!.userId));
+  }
 });
 
-router.post("/mc/material-progress", async (req, res) => {
-  const { userId, materialId, completedAt } = req.body as { userId: string; materialId: string; completedAt: number };
-  if (!userId || !materialId) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
+router.post("/mc/material-progress", requireAuth, async (req, res) => {
+  const { materialId, completedAt } = req.body as { userId?: string; materialId: string; completedAt: number };
+  // Always use the authenticated user's ID — ignore any userId from the body
+  const userId = req.jwtUser!.userId;
+  if (!materialId) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const existing = await db.select().from(mcMaterialProgressTable)
     .where(eq(mcMaterialProgressTable.userId, userId));
   const alreadyDone = existing.find((r) => r.materialId === materialId);
@@ -61,5 +72,8 @@ router.post("/mc/material-progress", async (req, res) => {
   const [created] = await db.insert(mcMaterialProgressTable).values({ userId, materialId, completedAt }).returning();
   res.status(201).json(created);
 });
+
+// Unused import guard
+void inArray;
 
 export default router;
