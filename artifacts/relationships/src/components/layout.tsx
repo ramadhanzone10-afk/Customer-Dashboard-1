@@ -43,8 +43,8 @@ interface NavItem {
 const teacherNav: NavItem[] = [
   { path: "/teacher", label: "Dashboard", icon: LayoutDashboard },
   { path: "/teacher/students", label: "Siswa", icon: Users },
-  { path: "/teacher/materials", label: "Materi", icon: BookOpen },
-  { path: "/teacher/exams", label: "Ujian", icon: ClipboardList },
+  { path: "/teacher/materials", label: "Materi & Soal", icon: BookOpen },
+  { path: "/teacher/exams", label: "Tugas", icon: ClipboardList },
   { path: "/teacher/payments", label: "Pembayaran", icon: Wallet },
   { path: "/teacher/chat", label: "Chat Kelas", icon: MessageCircle },
 ];

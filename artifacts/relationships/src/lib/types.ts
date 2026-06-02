@@ -31,6 +31,7 @@ export interface Material {
   assignedTo: string[];
   createdAt: number;
   status?: "draft" | "published";
+  materialType?: "materi" | "soal";
 }
 
 export interface MaterialProgress {
@@ -39,7 +40,7 @@ export interface MaterialProgress {
   completedAt: number;
 }
 
-export type QuestionType = "mc" | "essay" | "tf" | "fill";
+export type QuestionType = "mc" | "essay" | "tf" | "fill" | "mc-complex";
 
 export interface Question {
   id: string;
@@ -47,8 +48,12 @@ export interface Question {
   question: string;
   options?: string[];
   correctAnswer?: number;
+  correctAnswers?: number[];
   fillAnswer?: string;
   points: number;
+  imageDataUrl?: string;
+  pdfDataUrl?: string;
+  pdfFileName?: string;
 }
 
 export interface Exam {
@@ -58,6 +63,7 @@ export interface Exam {
   questions: Question[];
   durationMinutes: number;
   deadline: number;
+  startDateTime?: number;
   assignedTo: string[];
   createdBy: string;
   createdAt: number;
@@ -71,6 +77,7 @@ export interface Exam {
 export interface ExamAnswer {
   questionId: string;
   mcAnswer?: number;
+  complexAnswers?: number[];
   essayAnswer?: string;
   fillAnswer?: string;
   essayScore?: number;
@@ -89,6 +96,7 @@ export interface ExamSubmission {
   submittedAt: number;
   gradedAt?: number;
   fullyGraded: boolean;
+  cbtViolations?: number;
 }
 
 export type PaymentStatus = "unpaid" | "pending" | "paid";
