@@ -1,44 +1,45 @@
-# MathClub
+# [Project name]
 
-Indonesian-language online learning platform (bimbel) for math tutoring.
-Two roles: **Guru** (Teacher) and **Siswa** (Student).
+_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
 
-## Features
+## Run & Operate
 
-- **Login** with role-based routing (teacher / student)
-- **Materi** (Materials): teacher creates content with optional file upload and study timer; students browse, view, mark as complete
-- **Ujian** (Exams): teacher builds quizzes with multiple-choice + essay questions, sets duration and deadline; student takes exam with countdown timer that auto-submits when time expires; teacher grades essay answers
-- **Pembayaran** (Payments): monthly SPP tracking; student uploads proof of payment, teacher verifies/rejects/sends reminders
-- **Progres**: students see materials/exam completion, average grade, line chart of grade history
-- **Notifikasi**: in-app notifications for new materials, new exams, payment reminders, graded exams, payment uploads
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm run typecheck` — full typecheck across all packages
+- `pnpm run build` — typecheck + build all packages
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- Required env: `DATABASE_URL` — Postgres connection string
 
-## Architecture
+## Stack
 
-- Single React + Vite SPA artifact at `artifacts/relationships/` (slug name preserved from previous template; user-facing title is "MathClub")
-- All data persists to **localStorage** under the `mathclub:v1:` key prefix — no backend required for MVP
-- Custom subscribable store in `src/lib/storage.ts` with React hook `useStore` for live updates across tabs
-- `src/lib/seed.ts` populates demo data on first load (1 teacher, 3 students, materials, exams, payments, notifications)
-- Routing via wouter; protected routes enforce role
-- UI built with shadcn/ui + Tailwind, charts via recharts, icons via lucide-react
+- pnpm workspaces, Node.js 24, TypeScript 5.9
+- API: Express 5
+- DB: PostgreSQL + Drizzle ORM
+- Validation: Zod (`zod/v4`), `drizzle-zod`
+- API codegen: Orval (from OpenAPI spec)
+- Build: esbuild (CJS bundle)
 
-## Demo Accounts
+## Where things live
 
-- **Teacher**: `guru@mathclub.id` / `guru123` (Pak Budi)
-- **Students**: `andi@mathclub.id`, `siti@mathclub.id`, `rudi@mathclub.id` — all password `siswa123`
+_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
 
-## Project structure
+## Architecture decisions
 
-- `src/App.tsx` — router with role-protected routes
-- `src/components/layout.tsx` — sidebar + header + notification dropdown
-- `src/lib/{types,storage,auth,seed,format}.ts` — data layer
-- `src/pages/login.tsx` — login screen with quick-login demo buttons
-- `src/pages/teacher/*` — dashboard, students, materials, exams, exam-results, payments
-- `src/pages/student/*` — dashboard, materials, material-view, exams, take-exam, exam-result, progress, payments
+_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
 
-## Reset demo data
+## Product
 
-To reset the localStorage seed, run in browser console:
-```js
-Object.keys(localStorage).filter(k => k.startsWith('mathclub:')).forEach(k => localStorage.removeItem(k));
-location.reload();
-```
+_Describe the high-level user-facing capabilities of this app once they exist._
+
+## User preferences
+
+_Populate as you build — explicit user instructions worth remembering across sessions._
+
+## Gotchas
+
+_Populate as you build — sharp edges, "always run X before Y" rules._
+
+## Pointers
+
+- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
