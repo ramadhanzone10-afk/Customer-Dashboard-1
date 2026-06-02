@@ -18,8 +18,11 @@ export interface Material {
   title: string;
   description: string;
   content: string;
+  subject?: string;
+  bab?: string;
   fileName?: string;
   fileDataUrl?: string;
+  imageDataUrl?: string;
   videoUrl?: string;
   videoFileName?: string;
   videoDataUrl?: string;
@@ -35,7 +38,7 @@ export interface MaterialProgress {
   completedAt: number;
 }
 
-export type QuestionType = "mc" | "essay";
+export type QuestionType = "mc" | "essay" | "tf" | "fill";
 
 export interface Question {
   id: string;
@@ -43,6 +46,7 @@ export interface Question {
   question: string;
   options?: string[];
   correctAnswer?: number;
+  fillAnswer?: string;
   points: number;
 }
 
@@ -56,12 +60,17 @@ export interface Exam {
   assignedTo: string[];
   createdBy: string;
   createdAt: number;
+  type?: "exam" | "tugas";
+  shuffleQuestions?: boolean;
+  shuffleOptions?: boolean;
+  passingScore?: number;
 }
 
 export interface ExamAnswer {
   questionId: string;
   mcAnswer?: number;
   essayAnswer?: string;
+  fillAnswer?: string;
   essayScore?: number;
   essayFeedback?: string;
 }

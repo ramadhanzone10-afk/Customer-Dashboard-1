@@ -54,6 +54,8 @@ export const mcApi = {
   getExams: () => req<Exam[]>("/mc/exams"),
   createExam: (exam: Exam & { notifications?: AppNotification[] }) =>
     req<Exam>("/mc/exams", { method: "POST", body: JSON.stringify(exam) }),
+  updateExam: (id: string, exam: Partial<Exam>) =>
+    req<Exam>(`/mc/exams/${id}`, { method: "PUT", body: JSON.stringify(exam) }),
   deleteExam: (id: string) => req<{ ok: boolean }>(`/mc/exams/${id}`, { method: "DELETE" }),
 
   // ── Exam Submissions ──────────────────────────────────────────────────

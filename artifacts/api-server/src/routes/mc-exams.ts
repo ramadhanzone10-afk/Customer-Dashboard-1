@@ -17,16 +17,39 @@ router.post("/mc/exams", async (req, res) => {
     notifications?: { id: string; userId: string; type: string; title: string; message: string; link?: string; createdAt: number }[];
   };
   if (!body.id || !body.title || !body.createdBy) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
+  const bodyAny = body as Record<string, unknown>;
   const [created] = await db.insert(mcExamsTable).values({
     id: body.id, title: body.title, description: body.description,
     questions: body.questions, durationMinutes: body.durationMinutes,
     deadline: body.deadline, assignedTo: body.assignedTo ?? [],
     createdBy: body.createdBy, createdAt: body.createdAt,
+    type: (bodyAny.type as string) ?? "exam",
+    shuffleQuestions: (bodyAny.shuffleQuestions as boolean) ?? false,
+    shuffleOptions: (bodyAny.shuffleOptions as boolean) ?? false,
+    passingScore: (bodyAny.passingScore as number) ?? 70,
   }).returning();
   if (body.notifications?.length) {
     await db.insert(mcNotificationsTable).values(body.notifications.map((n) => ({ ...n, link: n.link ?? null, read: false })));
   }
   res.status(201).json({ ...created, assignedTo: created.assignedTo as string[] });
+});
+
+router.put("/mc/exams/:id", async (req, res) => {
+  const body = req.body as Partial<typeof mcExamsTable.$inferInsert>;
+  const [updated] = await db.update(mcExamsTable).set({
+    title: body.title,
+    description: body.description,
+    questions: body.questions,
+    durationMinutes: body.durationMinutes,
+    deadline: body.deadline,
+    assignedTo: body.assignedTo ?? [],
+    type: body.type ?? "exam",
+    shuffleQuestions: body.shuffleQuestions ?? false,
+    shuffleOptions: body.shuffleOptions ?? false,
+    passingScore: body.passingScore ?? 70,
+  }).where(eq(mcExamsTable.id, req.params.id)).returning();
+  if (!updated) { res.status(404).json({ error: "Ujian tidak ditemukan." }); return; }
+  res.json({ ...updated, assignedTo: updated.assignedTo as string[] });
 });
 
 router.delete("/mc/exams/:id", async (req, res) => {

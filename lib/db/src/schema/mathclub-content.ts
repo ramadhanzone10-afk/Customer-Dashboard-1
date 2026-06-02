@@ -5,8 +5,11 @@ export const mcMaterialsTable = pgTable("mc_materials", {
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   content: text("content").notNull().default(""),
+  subject: text("subject"),
+  bab: text("bab"),
   fileName: text("file_name"),
   fileDataUrl: text("file_data_url"),
+  imageDataUrl: text("image_data_url"),
   videoUrl: text("video_url"),
   videoFileName: text("video_file_name"),
   videoDataUrl: text("video_data_url"),
@@ -32,6 +35,10 @@ export const mcExamsTable = pgTable("mc_exams", {
   assignedTo: jsonb("assigned_to").notNull().default([]),
   createdBy: text("created_by").notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  type: text("type").notNull().default("exam"),
+  shuffleQuestions: boolean("shuffle_questions").notNull().default(false),
+  shuffleOptions: boolean("shuffle_options").notNull().default(false),
+  passingScore: integer("passing_score").notNull().default(70),
 });
 
 export const mcExamSubmissionsTable = pgTable("mc_exam_submissions", {
