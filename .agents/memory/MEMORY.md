@@ -1,0 +1,1 @@
+- [Student dashboard architecture](student-dashboard.md) — all student pages use localStorage via useStore hook; no direct DB calls from frontend
