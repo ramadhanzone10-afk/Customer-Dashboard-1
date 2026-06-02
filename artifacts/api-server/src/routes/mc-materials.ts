@@ -9,7 +9,12 @@ const router = Router();
 // (frontend filters by assignedTo; teacher sees all for management)
 router.get("/mc/materials", requireAuth, async (_req, res) => {
   const rows = await db.select().from(mcMaterialsTable);
-  res.json(rows.map((r) => ({ ...r, assignedTo: r.assignedTo as string[] })));
+  res.json(rows.map((r) => ({
+    ...r,
+    assignedTo: r.assignedTo as string[],
+    status: r.status ?? "draft",
+    materialType: r.materialType ?? "materi",
+  })));
 });
 
 // Create/update/delete: teacher only
@@ -20,28 +25,52 @@ router.post("/mc/materials", requireTeacher, async (req, res) => {
     fileName?: string; fileDataUrl?: string; videoUrl?: string;
     videoFileName?: string; videoDataUrl?: string; timerMinutes?: number;
     createdBy: string; assignedTo: string[]; createdAt: number;
+    status?: string; materialType?: string;
     notifications?: { id: string; userId: string; type: string; title: string; message: string; link?: string; createdAt: number }[];
   };
   if (!m.id || !m.title) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const createdBy = req.jwtUser!.userId;
   const [created] = await db.insert(mcMaterialsTable).values({
-    ...m, createdBy, assignedTo: m.assignedTo ?? [], timerMinutes: m.timerMinutes ?? null,
+    ...m, createdBy, assignedTo: m.assignedTo ?? [],
+    timerMinutes: m.timerMinutes ?? null,
     fileName: m.fileName ?? null, fileDataUrl: m.fileDataUrl ?? null,
+    imageDataUrl: (m as Record<string, unknown>).imageDataUrl as string | null ?? null,
     videoUrl: m.videoUrl ?? null, videoFileName: m.videoFileName ?? null, videoDataUrl: m.videoDataUrl ?? null,
+    status: m.status ?? "draft",
+    materialType: m.materialType ?? "materi",
   }).returning();
   if (m.notifications?.length) {
     await db.insert(mcNotificationsTable).values(m.notifications.map((n) => ({ ...n, link: n.link ?? null, read: false })));
   }
-  res.status(201).json({ ...created, assignedTo: created.assignedTo as string[] });
+  res.status(201).json({
+    ...created,
+    assignedTo: created.assignedTo as string[],
+    status: created.status ?? "draft",
+    materialType: created.materialType ?? "materi",
+  });
 });
 
 router.put("/mc/materials/:id", requireTeacher, async (req, res) => {
-  const m = req.body as Partial<typeof mcMaterialsTable.$inferInsert>;
+  const m = req.body as Partial<typeof mcMaterialsTable.$inferInsert> & {
+    notifications?: { id: string; userId: string; type: string; title: string; message: string; link?: string; createdAt: number }[];
+  };
+  const { notifications, ...updates } = m;
   const [updated] = await db.update(mcMaterialsTable).set({
-    ...m, assignedTo: m.assignedTo ?? undefined,
+    ...updates,
+    assignedTo: updates.assignedTo ?? undefined,
+    status: updates.status ?? undefined,
+    materialType: updates.materialType ?? undefined,
   }).where(eq(mcMaterialsTable.id, req.params.id)).returning();
   if (!updated) { res.status(404).json({ error: "Materi tidak ditemukan." }); return; }
-  res.json({ ...updated, assignedTo: updated.assignedTo as string[] });
+  if (notifications?.length) {
+    await db.insert(mcNotificationsTable).values(notifications.map((n) => ({ ...n, link: n.link ?? null, read: false })));
+  }
+  res.json({
+    ...updated,
+    assignedTo: updated.assignedTo as string[],
+    status: updated.status ?? "draft",
+    materialType: updated.materialType ?? "materi",
+  });
 });
 
 router.delete("/mc/materials/:id", requireTeacher, async (req, res) => {
@@ -62,7 +91,6 @@ router.get("/mc/material-progress", requireAuth, async (req, res) => {
 
 router.post("/mc/material-progress", requireAuth, async (req, res) => {
   const { materialId, completedAt } = req.body as { userId?: string; materialId: string; completedAt: number };
-  // Always use the authenticated user's ID — ignore any userId from the body
   const userId = req.jwtUser!.userId;
   if (!materialId) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const existing = await db.select().from(mcMaterialProgressTable)
@@ -73,7 +101,6 @@ router.post("/mc/material-progress", requireAuth, async (req, res) => {
   res.status(201).json(created);
 });
 
-// Unused import guard
 void inArray;
 
 export default router;

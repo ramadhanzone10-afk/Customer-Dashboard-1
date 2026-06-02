@@ -47,9 +47,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       write("users", Array.from(mergedMap.values()));
 
       write("classes", apiClasses);
-      write("materials", apiMaterials);
+
+      // Merge API data with local data: API is authoritative for known items,
+      // but preserve local-only items (created offline / pending sync) so they aren't lost.
+      const localMaterials = read("materials", []);
+      const apiMatIds = new Set(apiMaterials.map((m) => m.id));
+      const localOnlyMaterials = localMaterials.filter((m) => !apiMatIds.has(m.id));
+      write("materials", [...apiMaterials, ...localOnlyMaterials]);
+
       write("materialProgress", apiProgress);
-      write("exams", apiExams);
+
+      const localExams = read("exams", []);
+      const apiExamIds = new Set(apiExams.map((e) => e.id));
+      const localOnlyExams = localExams.filter((e) => !apiExamIds.has(e.id));
+      write("exams", [...apiExams, ...localOnlyExams]);
+
       write("examSubmissions", apiSubmissions);
       write("payments", apiPayments);
 

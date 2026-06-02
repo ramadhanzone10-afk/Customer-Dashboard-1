@@ -1,4 +1,4 @@
-import { pgTable, text, integer, real, boolean, bigint, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, boolean, bigint, jsonb } from "drizzle-orm/pg-core";
 
 export const mcMaterialsTable = pgTable("mc_materials", {
   id: text("id").primaryKey(),
@@ -17,6 +17,8 @@ export const mcMaterialsTable = pgTable("mc_materials", {
   createdBy: text("created_by").notNull(),
   assignedTo: jsonb("assigned_to").notNull().default([]),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  status: text("status").notNull().default("draft"),
+  materialType: text("material_type").notNull().default("materi"),
 });
 
 export const mcMaterialProgressTable = pgTable("mc_material_progress", {
@@ -32,10 +34,12 @@ export const mcExamsTable = pgTable("mc_exams", {
   questions: jsonb("questions").notNull().default([]),
   durationMinutes: integer("duration_minutes").notNull().default(60),
   deadline: bigint("deadline", { mode: "number" }).notNull(),
+  startDateTime: bigint("start_date_time", { mode: "number" }),
   assignedTo: jsonb("assigned_to").notNull().default([]),
   createdBy: text("created_by").notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   type: text("type").notNull().default("exam"),
+  status: text("status").notNull().default("draft"),
   shuffleQuestions: boolean("shuffle_questions").notNull().default(false),
   shuffleOptions: boolean("shuffle_options").notNull().default(false),
   passingScore: integer("passing_score").notNull().default(70),
@@ -53,6 +57,7 @@ export const mcExamSubmissionsTable = pgTable("mc_exam_submissions", {
   submittedAt: bigint("submitted_at", { mode: "number" }).notNull(),
   gradedAt: bigint("graded_at", { mode: "number" }),
   fullyGraded: boolean("fully_graded").notNull().default(false),
+  cbtViolations: integer("cbt_violations").default(0),
 });
 
 export const mcPaymentsTable = pgTable("mc_payments", {
