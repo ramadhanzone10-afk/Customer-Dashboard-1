@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db, mcMaterialsTable, mcMaterialProgressTable, mcNotificationsTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
+import { requireAuth } from "../lib/auth";
 
 const router = Router();
+router.use(requireAuth);
 
 router.get("/mc/materials", async (_req, res) => {
   const rows = await db.select().from(mcMaterialsTable);

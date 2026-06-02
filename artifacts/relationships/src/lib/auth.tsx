@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [syncFromBackend]);
 
-  const logout = useCallback(() => { write("session", null); setUser(null); }, []);
+  const logout = useCallback(() => { write("session", null); setUser(null); mcApi.logout(); }, []);
 
   const refresh = useCallback(() => {
     const session = read("session", null);

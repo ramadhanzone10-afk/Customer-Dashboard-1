@@ -1,6 +1,8 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { db, mcUsersTable, mcSettingsTable, mcClassMessagesTable, mcNotificationsTable } from "@workspace/db";
 import { eq, asc, and } from "drizzle-orm";
+import { signToken, requireAuth, requireTeacher } from "../lib/auth";
 
 const router = Router();
 
@@ -13,6 +15,18 @@ const DEFAULT_CLASSES: string[] = [
 const CLASSES_KEY = "mc_classes";
 const TEACHER_CODE_KEY = "teacher_registration_code";
 const DEFAULT_TEACHER_CODE = "GURU2024";
+const BCRYPT_ROUNDS = 10;
+
+async function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, BCRYPT_ROUNDS);
+}
+
+async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+  if (stored.startsWith("$2b$") || stored.startsWith("$2a$")) {
+    return bcrypt.compare(plain, stored);
+  }
+  return plain === stored;
+}
 
 async function getClasses(): Promise<string[]> {
   const [row] = await db.select().from(mcSettingsTable).where(eq(mcSettingsTable.key, CLASSES_KEY));
@@ -26,28 +40,26 @@ async function getTeacherCode(): Promise<string> {
   return row.value;
 }
 
-router.get("/mc/users", async (req, res) => {
-  const users = await db.select().from(mcUsersTable);
-  res.json(users.map(({ password: _pw, ...u }) => u));
-});
-
-router.get("/mc/teachers", async (_req, res) => {
-  type UserRow = typeof mcUsersTable.$inferSelect;
-  const teachers: UserRow[] = await db.select().from(mcUsersTable)
-    .where(and(eq(mcUsersTable.role, "teacher"), eq(mcUsersTable.status, "active")));
-  res.json(teachers.map(({ password: _pw, ...u }: UserRow) => u));
-});
-
+// ── Public: login ─────────────────────────────────────────────────────────────
 router.post("/mc/auth/login", async (req, res) => {
   const { email, password } = req.body as { email: string; password: string };
   if (!email || !password) { res.status(400).json({ error: "Email dan password wajib diisi." }); return; }
   const [user] = await db.select().from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
-  if (!user || user.password !== password) { res.status(401).json({ error: "Email atau password salah." }); return; }
+  if (!user) { res.status(401).json({ error: "Email atau password salah." }); return; }
+  const valid = await verifyPassword(password, user.password);
+  if (!valid) { res.status(401).json({ error: "Email atau password salah." }); return; }
   if (user.status === "pending") { res.status(403).json({ error: "Akun Anda sedang menunggu persetujuan guru." }); return; }
+  // Migrate plaintext password to bcrypt hash
+  if (!user.password.startsWith("$2b$") && !user.password.startsWith("$2a$")) {
+    const hashed = await hashPassword(password);
+    await db.update(mcUsersTable).set({ password: hashed }).where(eq(mcUsersTable.id, user.id));
+  }
+  const token = signToken({ userId: user.id, role: user.role as "teacher" | "student" });
   const { password: _pw, ...safe } = user;
-  res.json(safe);
+  res.json({ user: safe, token });
 });
 
+// ── Public: student registration ──────────────────────────────────────────────
 router.post("/mc/auth/register", async (req, res) => {
   const { id, email, password, name, avatarColor, kelas, phone, teacherId } = req.body as {
     id: string; email: string; password: string; name: string;
@@ -56,8 +68,9 @@ router.post("/mc/auth/register", async (req, res) => {
   if (!id || !email || !password || !name) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
   if (existing.length > 0) { res.status(409).json({ error: "Email sudah terdaftar." }); return; }
+  const hashed = await hashPassword(password);
   const [created] = await db.insert(mcUsersTable).values({
-    id, email: email.toLowerCase().trim(), password, name, role: "student", status: "pending",
+    id, email: email.toLowerCase().trim(), password: hashed, name, role: "student", status: "pending",
     avatarColor: avatarColor ?? null, kelas: kelas ?? null, phone: phone ?? null,
     teacherId: teacherId ?? null,
   }).returning();
@@ -77,6 +90,7 @@ router.post("/mc/auth/register", async (req, res) => {
   res.status(201).json(safe);
 });
 
+// ── Public: teacher registration ──────────────────────────────────────────────
 router.post("/mc/auth/register-teacher", async (req, res) => {
   const { id, email, password, name, avatarColor, phone, code } = req.body as {
     id: string; email: string; password: string; name: string;
@@ -87,15 +101,35 @@ router.post("/mc/auth/register-teacher", async (req, res) => {
   if (code.trim() !== validCode) { res.status(403).json({ error: "Kode registrasi guru tidak valid." }); return; }
   const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
   if (existing.length > 0) { res.status(409).json({ error: "Email sudah terdaftar." }); return; }
+  const hashed = await hashPassword(password);
   const [created] = await db.insert(mcUsersTable).values({
-    id, email: email.toLowerCase().trim(), password, name, role: "teacher", status: "active",
+    id, email: email.toLowerCase().trim(), password: hashed, name, role: "teacher", status: "active",
     avatarColor: avatarColor ?? null, phone: phone ?? null,
   }).returning();
   const { password: _pw, ...safe } = created;
   res.status(201).json(safe);
 });
 
-router.post("/mc/users", async (req, res) => {
+// ── Public: list teachers & classes (needed for registration form) ─────────────
+router.get("/mc/teachers", async (_req, res) => {
+  type UserRow = typeof mcUsersTable.$inferSelect;
+  const teachers: UserRow[] = await db.select().from(mcUsersTable)
+    .where(and(eq(mcUsersTable.role, "teacher"), eq(mcUsersTable.status, "active")));
+  res.json(teachers.map(({ password: _pw, ...u }: UserRow) => u));
+});
+
+router.get("/mc/classes", async (_req, res) => {
+  res.json(await getClasses());
+});
+
+// ── Authenticated: list all users ─────────────────────────────────────────────
+router.get("/mc/users", requireAuth, async (req, res) => {
+  const users = await db.select().from(mcUsersTable);
+  res.json(users.map(({ password: _pw, ...u }) => u));
+});
+
+// ── Teacher only: create user directly (seeding) ──────────────────────────────
+router.post("/mc/users", requireTeacher, async (req, res) => {
   const { id, email, password, name, role, avatarColor, kelas, phone, teacherId } = req.body as {
     id: string; email: string; password: string; name: string;
     role: string; avatarColor?: string; kelas?: string; phone?: string; teacherId?: string;
@@ -103,8 +137,9 @@ router.post("/mc/users", async (req, res) => {
   if (!id || !email || !password || !name || !role) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const existing = await db.select({ id: mcUsersTable.id }).from(mcUsersTable).where(eq(mcUsersTable.email, email.toLowerCase().trim()));
   if (existing.length > 0) { res.status(409).json({ error: "Email sudah terdaftar." }); return; }
+  const hashed = await hashPassword(password);
   const [created] = await db.insert(mcUsersTable).values({
-    id, email: email.toLowerCase().trim(), password, name, role,
+    id, email: email.toLowerCase().trim(), password: hashed, name, role,
     avatarColor: avatarColor ?? null, kelas: kelas ?? null, phone: phone ?? null,
     teacherId: teacherId ?? null,
   }).returning();
@@ -112,8 +147,14 @@ router.post("/mc/users", async (req, res) => {
   res.status(201).json(safe);
 });
 
-router.put("/mc/users/:id", async (req, res) => {
+// ── Authenticated: update own profile ────────────────────────────────────────
+router.put("/mc/users/:id", requireAuth, async (req, res) => {
   const { id } = req.params;
+  // Users may only update their own profile; teachers may update anyone
+  if (req.jwtUser!.role !== "teacher" && req.jwtUser!.userId !== id) {
+    res.status(403).json({ error: "Tidak diizinkan mengubah profil pengguna lain." });
+    return;
+  }
   const { name, kelas, phone, avatarColor, password, teacherId } = req.body as {
     name?: string; kelas?: string | null; phone?: string | null;
     avatarColor?: string; password?: string; teacherId?: string | null;
@@ -123,7 +164,7 @@ router.put("/mc/users/:id", async (req, res) => {
   if (kelas !== undefined) updates.kelas = kelas ?? null;
   if (phone !== undefined) updates.phone = phone ?? null;
   if (avatarColor !== undefined) updates.avatarColor = avatarColor;
-  if (password !== undefined) updates.password = password;
+  if (password !== undefined) updates.password = await hashPassword(password);
   if (teacherId !== undefined) updates.teacherId = teacherId ?? null;
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Tidak ada perubahan." }); return; }
   const [updated] = await db.update(mcUsersTable).set(updates).where(eq(mcUsersTable.id, id)).returning();
@@ -144,7 +185,8 @@ router.put("/mc/users/:id", async (req, res) => {
   res.json(safe);
 });
 
-router.put("/mc/users/:id/approve", async (req, res) => {
+// ── Teacher only: approve/delete users ───────────────────────────────────────
+router.put("/mc/users/:id/approve", requireTeacher, async (req, res) => {
   const { id } = req.params;
   const [updated] = await db
     .update(mcUsersTable)
@@ -156,12 +198,13 @@ router.put("/mc/users/:id/approve", async (req, res) => {
   res.json(safe);
 });
 
-router.delete("/mc/users/:id", async (req, res) => {
+router.delete("/mc/users/:id", requireTeacher, async (req, res) => {
   await db.delete(mcUsersTable).where(eq(mcUsersTable.id, req.params.id));
   res.json({ ok: true });
 });
 
-router.get("/mc/messages/:kelas", async (req, res) => {
+// ── Authenticated: class messages ─────────────────────────────────────────────
+router.get("/mc/messages/:kelas", requireAuth, async (req, res) => {
   const { kelas } = req.params;
   const rows = await db
     .select()
@@ -171,7 +214,7 @@ router.get("/mc/messages/:kelas", async (req, res) => {
   res.json(rows.map((r: typeof mcClassMessagesTable.$inferSelect) => ({ ...r, createdAt: new Date(r.createdAt).getTime() })));
 });
 
-router.post("/mc/messages", async (req, res) => {
+router.post("/mc/messages", requireAuth, async (req, res) => {
   const { id, kelas, userId, text } = req.body as {
     id: string; kelas: string; userId: string; text: string;
   };
@@ -186,16 +229,13 @@ router.post("/mc/messages", async (req, res) => {
   res.status(201).json({ ...created, createdAt: new Date(created.createdAt).getTime() });
 });
 
-router.delete("/mc/messages/:id", async (req, res) => {
+router.delete("/mc/messages/:id", requireAuth, async (req, res) => {
   await db.delete(mcClassMessagesTable).where(eq(mcClassMessagesTable.id, req.params.id));
   res.json({ ok: true });
 });
 
-router.get("/mc/classes", async (_req, res) => {
-  res.json(await getClasses());
-});
-
-router.put("/mc/classes", async (req, res) => {
+// ── Teacher only: manage classes & teacher code ───────────────────────────────
+router.put("/mc/classes", requireTeacher, async (req, res) => {
   const classes = req.body as string[];
   if (!Array.isArray(classes)) { res.status(400).json({ error: "Format tidak valid." }); return; }
   await db.insert(mcSettingsTable).values({ key: CLASSES_KEY, value: JSON.stringify(classes) })
@@ -203,12 +243,12 @@ router.put("/mc/classes", async (req, res) => {
   res.json(classes);
 });
 
-router.get("/mc/teacher-code", async (_req, res) => {
+router.get("/mc/teacher-code", requireTeacher, async (_req, res) => {
   const code = await getTeacherCode();
   res.json({ code });
 });
 
-router.put("/mc/teacher-code", async (req, res) => {
+router.put("/mc/teacher-code", requireTeacher, async (req, res) => {
   const { code } = req.body as { code: string };
   if (!code?.trim()) { res.status(400).json({ error: "Kode tidak boleh kosong." }); return; }
   await db.insert(mcSettingsTable).values({ key: TEACHER_CODE_KEY, value: code.trim() })

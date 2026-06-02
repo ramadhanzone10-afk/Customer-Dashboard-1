@@ -4,9 +4,31 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 
 export type ApiUser = Omit<User, "password">;
 
+export interface LoginResult {
+  user: ApiUser;
+  token: string;
+}
+
+const TOKEN_KEY = "mc_jwt";
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${BASE}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...init,
   });
   const json = await res.json().catch(() => ({}));
@@ -17,8 +39,12 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const mcApi = {
   // ── Auth & Users ──────────────────────────────────────────────────────
   getUsers: () => req<ApiUser[]>("/mc/users"),
-  login: (email: string, password: string) =>
-    req<ApiUser>("/mc/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  login: async (email: string, password: string): Promise<ApiUser> => {
+    const result = await req<LoginResult>("/mc/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    setToken(result.token);
+    return result.user;
+  },
+  logout: () => { clearToken(); },
   createUser: (user: Omit<User, "createdAt"> & { password: string }) =>
     req<ApiUser>("/mc/users", { method: "POST", body: JSON.stringify(user) }),
   updateUser: (id: string, data: Partial<Pick<User, "name" | "avatarColor" | "password">> & { kelas?: string | null; phone?: string | null; teacherId?: string | null; paymentMethod?: string }) =>

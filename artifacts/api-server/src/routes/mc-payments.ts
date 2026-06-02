@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db, mcPaymentsTable, mcNotificationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { requireAuth } from "../lib/auth";
 
 const router = Router();
+router.use(requireAuth);
 
 router.get("/mc/payments", async (_req, res) => {
   const rows = await db.select().from(mcPaymentsTable);
