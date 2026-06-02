@@ -30,6 +30,7 @@ export interface Material {
   createdBy: string;
   assignedTo: string[];
   createdAt: number;
+  status?: "draft" | "published";
 }
 
 export interface MaterialProgress {
@@ -64,6 +65,7 @@ export interface Exam {
   shuffleQuestions?: boolean;
   shuffleOptions?: boolean;
   passingScore?: number;
+  status?: "draft" | "published";
 }
 
 export interface ExamAnswer {

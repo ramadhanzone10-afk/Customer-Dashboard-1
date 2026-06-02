@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import {
   Plus, BookOpen, Clock, Users as UsersIcon, FileText, Trash2, Pencil,
-  Video, Link as LinkIcon, Image as ImageIcon, Search, Filter, GraduationCap, BookMarked,
+  Video, Link as LinkIcon, Image as ImageIcon, Search, Filter, GraduationCap,
+  BookMarked, CalendarCheck, Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger,
+} from "@/components/ui/tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
@@ -29,7 +33,7 @@ export default function TeacherMaterials() {
   const users = useStore<User[]>("users", []);
 
   const myStudents = useMemo(
-    () => users.filter((u) => u.role === "student" && u.teacherId === user?.id),
+    () => users.filter((u) => u.role === "student" && u.teacherId === user?.id && u.status === "active"),
     [users, user],
   );
   const myMaterials = useMemo(
@@ -39,16 +43,42 @@ export default function TeacherMaterials() {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Material | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<Material | null>(null);
   const [search, setSearch] = useState("");
   const [filterSubject, setFilterSubject] = useState("all");
   const [filterBab, setFilterBab] = useState("all");
 
   function startCreate() { setEditing(null); setOpen(true); }
   function startEdit(m: Material) { setEditing(m); setOpen(true); }
+  function openSchedule(m: Material) { setScheduleTarget(m); }
   function deleteMaterial(id: string) {
     if (!confirm("Hapus materi ini?")) return;
     write("materials", materials.filter((m) => m.id !== id));
     void mcApi.deleteMaterial(id).catch(() => {});
+  }
+
+  function onScheduled(materialId: string, studentIds: string[]) {
+    const all = read<Material[]>("materials", []);
+    const target = all.find((m) => m.id === materialId);
+    if (!target) return;
+    const prevIds = target.assignedTo ?? [];
+    const newlyAdded = studentIds.filter((id) => !prevIds.includes(id));
+    const updated: Material = { ...target, assignedTo: studentIds, status: "published" };
+    write("materials", all.map((m) => m.id === materialId ? updated : m));
+
+    if (newlyAdded.length) {
+      const notifs = read<AppNotification[]>("notifications", []);
+      const newNotifs: AppNotification[] = newlyAdded.map((sid) => ({
+        id: uid("n_"), userId: sid, type: "new_material",
+        title: "Materi baru", message: `Materi "${target.title}" telah dijadwalkan untuk Anda.`,
+        link: "/student/materials", createdAt: Date.now(), read: false,
+      }));
+      write("notifications", [...notifs, ...newNotifs]);
+      void mcApi.updateMaterial(materialId, { ...updated, notifications: newNotifs } as Material & { notifications?: AppNotification[] }).catch(() => {});
+    } else {
+      void mcApi.updateMaterial(materialId, updated).catch(() => {});
+    }
+    setScheduleTarget(null);
   }
 
   const subjects = useMemo(() => [...new Set(myMaterials.map((m) => m.subject).filter(Boolean) as string[])].sort(), [myMaterials]);
@@ -82,15 +112,17 @@ export default function TeacherMaterials() {
     }));
   }, [filtered]);
 
+  const isDraft = (m: Material) => !m.assignedTo?.length || m.status === "draft";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-muted-foreground">
-          Buat dan bagikan materi pembelajaran kepada siswa.
+          Buat materi terlebih dahulu, lalu jadwalkan ke kelas atau siswa.
         </p>
         <Button onClick={startCreate} data-testid="button-new-material">
           <Plus className="h-4 w-4 mr-2" />
-          Materi Baru
+          Buat Materi
         </Button>
       </div>
 
@@ -134,7 +166,7 @@ export default function TeacherMaterials() {
           <EmptyHeader>
             <EmptyMedia variant="icon"><BookOpen className="h-6 w-6" /></EmptyMedia>
             <EmptyTitle>Belum ada materi</EmptyTitle>
-            <EmptyDescription>Mulai dengan membuat materi pertama untuk siswa Anda.</EmptyDescription>
+            <EmptyDescription>Buat materi pertama, lalu jadwalkan ke siswa Anda.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button onClick={startCreate}><Plus className="h-4 w-4 mr-2" />Buat Materi</Button>
@@ -162,7 +194,7 @@ export default function TeacherMaterials() {
                     )}
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {items.map((m) => (
-                        <Card key={m.id} data-testid={`material-card-${m.id}`}>
+                        <Card key={m.id} data-testid={`material-card-${m.id}`} className={isDraft(m) ? "border-dashed" : ""}>
                           {m.imageDataUrl && (
                             <div className="h-32 overflow-hidden rounded-t-lg">
                               <img src={m.imageDataUrl} alt={m.title} className="w-full h-full object-cover" />
@@ -171,6 +203,11 @@ export default function TeacherMaterials() {
                           <CardHeader className={m.imageDataUrl ? "pt-3" : ""}>
                             <CardTitle className="text-base flex items-start justify-between gap-2">
                               <span className="line-clamp-2">{m.title}</span>
+                              {isDraft(m) ? (
+                                <Badge variant="secondary" className="shrink-0 text-xs">Draft</Badge>
+                              ) : (
+                                <Badge variant="default" className="shrink-0 text-xs bg-green-600">Aktif</Badge>
+                              )}
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-3">
@@ -184,10 +221,34 @@ export default function TeacherMaterials() {
                               {m.fileName && <Badge variant="secondary" className="gap-1"><FileText className="h-3 w-3" />PDF</Badge>}
                               {m.imageDataUrl && <Badge variant="secondary" className="gap-1"><ImageIcon className="h-3 w-3" />Gambar</Badge>}
                               {(m.videoUrl || m.videoDataUrl) && <Badge variant="secondary" className="gap-1"><Video className="h-3 w-3" />Video</Badge>}
-                              <Badge variant="outline" className="gap-1"><UsersIcon className="h-3 w-3" />{m.assignedTo.length}</Badge>
+                              {!isDraft(m) && (
+                                <Badge variant="outline" className="gap-1"><UsersIcon className="h-3 w-3" />{m.assignedTo.length} siswa</Badge>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">Dibuat {formatDate(m.createdAt)}</div>
-                            <div className="flex gap-2 pt-2">
+
+                            {/* Action buttons */}
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {isDraft(m) ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => openSchedule(m)}
+                                  className="gap-1"
+                                  data-testid={`button-schedule-${m.id}`}
+                                >
+                                  <Send className="h-3.5 w-3.5" />Jadwalkan
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openSchedule(m)}
+                                  className="gap-1"
+                                  data-testid={`button-reschedule-${m.id}`}
+                                >
+                                  <CalendarCheck className="h-3.5 w-3.5" />Ubah Jadwal
+                                </Button>
+                              )}
                               <Button variant="outline" size="sm" onClick={() => startEdit(m)} data-testid={`button-edit-${m.id}`}>
                                 <Pencil className="h-3 w-3 mr-1" />Edit
                               </Button>
@@ -213,19 +274,198 @@ export default function TeacherMaterials() {
         editing={editing}
         teacherId={user!.id}
         students={myStudents}
+        onCreated={(m) => {
+          // Auto-open schedule dialog for newly created materials
+          setScheduleTarget(m);
+        }}
       />
+
+      {scheduleTarget && (
+        <ScheduleDialog
+          open={!!scheduleTarget}
+          onOpenChange={(o) => { if (!o) setScheduleTarget(null); }}
+          itemTitle={scheduleTarget.title}
+          itemId={scheduleTarget.id}
+          currentAssigned={scheduleTarget.assignedTo}
+          students={myStudents}
+          onConfirm={(ids) => onScheduled(scheduleTarget.id, ids)}
+        />
+      )}
     </div>
   );
 }
 
+// ── Schedule Dialog ────────────────────────────────────────────────────────────
+export function ScheduleDialog({
+  open, onOpenChange, itemTitle, itemId: _itemId, currentAssigned, students, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  itemTitle: string;
+  itemId: string;
+  currentAssigned: string[];
+  students: User[];
+  onConfirm: (studentIds: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentAssigned));
+  const [mode, setMode] = useState<"kelas" | "siswa">("kelas");
+
+  // Reset when dialog opens
+  useMemo(() => {
+    if (open) {
+      setSelected(new Set(currentAssigned));
+      setMode("kelas");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Group students by kelas
+  const classGroups = useMemo(() => {
+    const map = new Map<string, User[]>();
+    for (const s of students) {
+      const k = s.kelas ?? "(Tanpa Kelas)";
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [students]);
+
+  function isClassChecked(kelas: string): boolean {
+    const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? [];
+    return ids.length > 0 && ids.every((id) => selected.has(id));
+  }
+  function isClassIndeterminate(kelas: string): boolean {
+    const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? [];
+    return ids.some((id) => selected.has(id)) && !ids.every((id) => selected.has(id));
+  }
+  function toggleClass(kelas: string, checked: boolean) {
+    const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? [];
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) ids.forEach((id) => next.add(id));
+      else ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+  function toggleStudent(id: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+  function selectAll() { setSelected(new Set(students.map((s) => s.id))); }
+  function clearAll() { setSelected(new Set()); }
+
+  function confirm() {
+    if (selected.size === 0 && !confirm("Tidak ada siswa yang dipilih. Simpan tanpa penjadwalan?")) return;
+    onConfirm([...selected]);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarCheck className="h-5 w-5 text-primary" />
+            Jadwalkan Materi
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground line-clamp-1">"{itemTitle}"</p>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{selected.size} siswa dipilih</span>
+            <div className="flex gap-2">
+              <button type="button" className="text-xs text-primary underline" onClick={selectAll}>Pilih semua</button>
+              <button type="button" className="text-xs text-muted-foreground underline" onClick={clearAll}>Hapus semua</button>
+            </div>
+          </div>
+
+          {students.length === 0 ? (
+            <div className="border rounded-lg p-6 text-center text-sm text-muted-foreground">
+              Belum ada siswa aktif terhubung dengan akun Anda.
+            </div>
+          ) : (
+            <Tabs value={mode} onValueChange={(v) => setMode(v as "kelas" | "siswa")}>
+              <TabsList className="w-full">
+                <TabsTrigger value="kelas" className="flex-1">Per Kelas</TabsTrigger>
+                <TabsTrigger value="siswa" className="flex-1">Per Siswa</TabsTrigger>
+              </TabsList>
+
+              {/* Per Kelas */}
+              <TabsContent value="kelas" className="space-y-2 mt-3">
+                {classGroups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Siswa belum memiliki kelas.</p>
+                ) : classGroups.map(([kelas, siswa]) => (
+                  <div key={kelas} className="border rounded-lg p-3 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={isClassChecked(kelas)}
+                        data-indeterminate={isClassIndeterminate(kelas) || undefined}
+                        onCheckedChange={(c) => toggleClass(kelas, !!c)}
+                      />
+                      <span className="font-semibold text-sm">{kelas}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">{siswa.length} siswa</span>
+                    </label>
+                    <div className="pl-6 space-y-1">
+                      {siswa.map((s) => (
+                        <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={selected.has(s.id)}
+                            onCheckedChange={(c) => toggleStudent(s.id, !!c)}
+                          />
+                          {s.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </TabsContent>
+
+              {/* Per Siswa */}
+              <TabsContent value="siswa" className="mt-3">
+                <div className="border rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">
+                  {students.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={selected.has(s.id)}
+                        onCheckedChange={(c) => toggleStudent(s.id, !!c)}
+                      />
+                      <span>{s.name}</span>
+                      {s.kelas && <span className="text-xs text-muted-foreground">({s.kelas})</span>}
+                    </label>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={confirm} disabled={students.length === 0} className="gap-1">
+            <Send className="h-4 w-4" />
+            Jadwalkan ke {selected.size} Siswa
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Material Dialog (create/edit content only) ─────────────────────────────
 function MaterialDialog({
-  open, onOpenChange, editing, teacherId, students,
+  open, onOpenChange, editing, teacherId, students: _students, onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   editing: Material | null;
   teacherId: string;
   students: User[];
+  onCreated?: (m: Material) => void;
 }) {
   const [title, setTitle] = useState(editing?.title ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
@@ -233,7 +473,6 @@ function MaterialDialog({
   const [subject, setSubject] = useState(editing?.subject ?? "");
   const [bab, setBab] = useState(editing?.bab ?? "");
   const [timerMinutes, setTimerMinutes] = useState<string>(editing?.timerMinutes ? String(editing.timerMinutes) : "");
-  const [assigned, setAssigned] = useState<string[]>(editing?.assignedTo ?? students.map((s) => s.id));
   const [fileName, setFileName] = useState(editing?.fileName ?? "");
   const [fileDataUrl, setFileDataUrl] = useState(editing?.fileDataUrl ?? "");
   const [imageDataUrl, setImageDataUrl] = useState(editing?.imageDataUrl ?? "");
@@ -251,7 +490,6 @@ function MaterialDialog({
       setSubject(editing?.subject ?? "");
       setBab(editing?.bab ?? "");
       setTimerMinutes(editing?.timerMinutes ? String(editing.timerMinutes) : "");
-      setAssigned(editing?.assignedTo ?? students.map((s) => s.id));
       setFileName(editing?.fileName ?? "");
       setFileDataUrl(editing?.fileDataUrl ?? "");
       setImageDataUrl(editing?.imageDataUrl ?? "");
@@ -279,7 +517,7 @@ function MaterialDialog({
 
   function save() {
     if (!title.trim()) { alert("Judul materi wajib diisi."); return; }
-    const all = read("materials", []);
+    const all = read<Material[]>("materials", []);
     const existing = all.find((m) => m.id === editing?.id);
     const m: Material = {
       id: existing?.id ?? uid("m_"),
@@ -296,20 +534,17 @@ function MaterialDialog({
       videoDataUrl: videoTab === "upload" && videoDataUrl ? videoDataUrl : undefined,
       timerMinutes: timerMinutes ? parseInt(timerMinutes) : undefined,
       createdBy: existing?.createdBy ?? teacherId,
-      assignedTo: assigned,
+      // Keep existing assignedTo when editing; draft (empty) for new
+      assignedTo: existing?.assignedTo ?? [],
+      status: existing?.status ?? "draft",
       createdAt: existing?.createdAt ?? Date.now(),
     };
     const next = existing ? all.map((x) => (x.id === m.id ? m : x)) : [...all, m];
     write("materials", next);
     if (!existing) {
-      const notifs = read("notifications", []);
-      const newNotifs: AppNotification[] = assigned.map((sid) => ({
-        id: uid("n_"), userId: sid, type: "new_material",
-        title: "Materi baru", message: `Materi "${m.title}" telah dibagikan.`,
-        link: "/student/materials", createdAt: Date.now(), read: false,
-      }));
-      write("notifications", [...notifs, ...newNotifs]);
-      void mcApi.createMaterial({ ...m, notifications: newNotifs }).catch(() => {});
+      // Create draft in API (no notifications yet)
+      void mcApi.createMaterial(m).catch(() => {});
+      onCreated?.(m);
     } else {
       void mcApi.updateMaterial(m.id, m).catch(() => {});
     }
@@ -327,6 +562,11 @@ function MaterialDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Materi" : "Buat Materi Baru"}</DialogTitle>
+          {!editing && (
+            <p className="text-sm text-muted-foreground">
+              Isi konten materi. Setelah disimpan, Anda bisa menjadwalkan ke kelas atau siswa tertentu.
+            </p>
+          )}
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -395,7 +635,7 @@ function MaterialDialog({
                     <button onClick={() => setImageDataUrl("")} className="text-xs text-destructive underline mt-1">hapus gambar</button>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground mt-1">Tambahkan gambar ilustrasi untuk materi. Format: JPG, PNG, WebP.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Format: JPG, PNG, WebP.</p>
                 )}
               </div>
             )}
@@ -433,34 +673,12 @@ function MaterialDialog({
             <Label>Timer belajar (menit, opsional)</Label>
             <Input type="number" min="1" value={timerMinutes} onChange={(e) => setTimerMinutes(e.target.value)} placeholder="contoh: 30" data-testid="input-material-timer" />
           </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Bagikan ke siswa</Label>
-              <div className="flex gap-2">
-                <button type="button" className="text-xs text-primary underline" onClick={() => setAssigned(students.map((s) => s.id))}>Pilih semua</button>
-                <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setAssigned([])}>Hapus semua</button>
-              </div>
-            </div>
-            <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
-              {students.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Belum ada siswa terhubung.</p>
-              ) : students.map((s) => (
-                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox
-                    checked={assigned.includes(s.id)}
-                    onCheckedChange={(c) => setAssigned((prev) => c ? [...prev, s.id] : prev.filter((id) => id !== s.id))}
-                    data-testid={`checkbox-assign-${s.id}`}
-                  />
-                  {s.name} {s.kelas && <span className="text-muted-foreground text-xs">({s.kelas})</span>}
-                </label>
-              ))}
-            </div>
-          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-          <Button onClick={save} data-testid="button-save-material">Simpan</Button>
+          <Button onClick={save} data-testid="button-save-material">
+            {editing ? "Simpan Perubahan" : "Simpan Draft"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

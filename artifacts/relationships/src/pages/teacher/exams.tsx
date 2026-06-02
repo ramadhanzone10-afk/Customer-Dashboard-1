@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Plus, Clock, Users as UsersIcon, ClipboardList, Trash2, BarChart3, X,
-  Shuffle, CheckSquare, AlignLeft, ToggleLeft, Pencil,
+  Shuffle, CheckSquare, AlignLeft, ToggleLeft, Pencil, Send, CalendarCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,162 @@ const QUESTION_TYPE_ICONS: Record<string, React.ReactNode> = {
   essay: <AlignLeft className="h-3.5 w-3.5" />,
 };
 
+// ── Shared Schedule Dialog ────────────────────────────────────────────────────
+function ScheduleDialog({
+  open, onOpenChange, itemTitle, currentAssigned, students, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  itemTitle: string;
+  currentAssigned: string[];
+  students: User[];
+  onConfirm: (studentIds: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentAssigned));
+  const [mode, setMode] = useState<"kelas" | "siswa">("kelas");
+
+  useMemo(() => {
+    if (open) {
+      setSelected(new Set(currentAssigned));
+      setMode("kelas");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const classGroups = useMemo(() => {
+    const map = new Map<string, User[]>();
+    for (const s of students) {
+      const k = s.kelas ?? "(Tanpa Kelas)";
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [students]);
+
+  function isClassChecked(kelas: string) {
+    const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? [];
+    return ids.length > 0 && ids.every((id) => selected.has(id));
+  }
+  function isClassIndeterminate(kelas: string) {
+    const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? [];
+    return ids.some((id) => selected.has(id)) && !ids.every((id) => selected.has(id));
+  }
+  function toggleClass(kelas: string, checked: boolean) {
+    const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? [];
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) ids.forEach((id) => next.add(id));
+      else ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+  function toggleStudent(id: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+  function selectAll() { setSelected(new Set(students.map((s) => s.id))); }
+  function clearAll() { setSelected(new Set()); }
+
+  function confirm() {
+    onConfirm([...selected]);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarCheck className="h-5 w-5 text-primary" />
+            Jadwalkan ke Siswa
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground line-clamp-1">"{itemTitle}"</p>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{selected.size} siswa dipilih</span>
+            <div className="flex gap-2">
+              <button type="button" className="text-xs text-primary underline" onClick={selectAll}>Pilih semua</button>
+              <button type="button" className="text-xs text-muted-foreground underline" onClick={clearAll}>Hapus semua</button>
+            </div>
+          </div>
+
+          {students.length === 0 ? (
+            <div className="border rounded-lg p-6 text-center text-sm text-muted-foreground">
+              Belum ada siswa aktif terhubung dengan akun Anda.
+            </div>
+          ) : (
+            <Tabs value={mode} onValueChange={(v) => setMode(v as "kelas" | "siswa")}>
+              <TabsList className="w-full">
+                <TabsTrigger value="kelas" className="flex-1">Per Kelas</TabsTrigger>
+                <TabsTrigger value="siswa" className="flex-1">Per Siswa</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="kelas" className="space-y-2 mt-3">
+                {classGroups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Siswa belum memiliki kelas.</p>
+                ) : classGroups.map(([kelas, siswa]) => (
+                  <div key={kelas} className="border rounded-lg p-3 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={isClassChecked(kelas)}
+                        data-indeterminate={isClassIndeterminate(kelas) || undefined}
+                        onCheckedChange={(c) => toggleClass(kelas, !!c)}
+                      />
+                      <span className="font-semibold text-sm">{kelas}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">{siswa.length} siswa</span>
+                    </label>
+                    <div className="pl-6 space-y-1">
+                      {siswa.map((s) => (
+                        <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={selected.has(s.id)}
+                            onCheckedChange={(c) => toggleStudent(s.id, !!c)}
+                          />
+                          {s.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </TabsContent>
+
+              <TabsContent value="siswa" className="mt-3">
+                <div className="border rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">
+                  {students.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={selected.has(s.id)}
+                        onCheckedChange={(c) => toggleStudent(s.id, !!c)}
+                      />
+                      <span>{s.name}</span>
+                      {s.kelas && <span className="text-xs text-muted-foreground">({s.kelas})</span>}
+                    </label>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={confirm} disabled={students.length === 0} className="gap-1">
+            <Send className="h-4 w-4" />
+            Jadwalkan ke {selected.size} Siswa
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function TeacherExams() {
   const { user } = useAuth();
   const exams = useStore<Exam[]>("exams", []);
@@ -49,7 +205,7 @@ export default function TeacherExams() {
   const users = useStore<User[]>("users", []);
 
   const myStudents = useMemo(
-    () => users.filter((u) => u.role === "student" && u.teacherId === user?.id),
+    () => users.filter((u) => u.role === "student" && u.teacherId === user?.id && u.status === "active"),
     [users, user],
   );
   const myExams = useMemo(() => exams.filter((e) => e.createdBy === user?.id), [exams, user]);
@@ -60,9 +216,11 @@ export default function TeacherExams() {
   const [open, setOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [newType, setNewType] = useState<"exam" | "tugas">("exam");
+  const [scheduleTarget, setScheduleTarget] = useState<Exam | null>(null);
 
   function openCreate(type: "exam" | "tugas") { setEditingExam(null); setNewType(type); setOpen(true); }
   function openEdit(e: Exam) { setEditingExam(e); setNewType(e.type ?? "exam"); setOpen(true); }
+  function openSchedule(e: Exam) { setScheduleTarget(e); }
 
   function deleteExam(id: string) {
     if (!confirm("Hapus ujian ini?")) return;
@@ -71,16 +229,51 @@ export default function TeacherExams() {
     void mcApi.deleteExam(id).catch(() => {});
   }
 
+  function onScheduled(examId: string, studentIds: string[]) {
+    const all = read<Exam[]>("exams", []);
+    const target = all.find((e) => e.id === examId);
+    if (!target) return;
+    const prevIds = target.assignedTo ?? [];
+    const newlyAdded = studentIds.filter((id) => !prevIds.includes(id));
+    const updated: Exam = { ...target, assignedTo: studentIds, status: "published" };
+    write("exams", all.map((e) => e.id === examId ? updated : e));
+
+    const typeLabel = target.type === "tugas" ? "Tugas" : "Ujian";
+    if (newlyAdded.length) {
+      const notifs = read<AppNotification[]>("notifications", []);
+      const newNotifs: AppNotification[] = newlyAdded.map((sid) => ({
+        id: uid("n_"), userId: sid, type: "new_exam",
+        title: `${typeLabel} baru tersedia`,
+        message: `${target.title} telah dijadwalkan untuk Anda.`,
+        link: "/student/exams", createdAt: Date.now(), read: false,
+      }));
+      write("notifications", [...notifs, ...newNotifs]);
+      void mcApi.updateExam?.(examId, { ...updated, notifications: newNotifs } as Exam & { notifications?: AppNotification[] }).catch(() => {});
+    } else {
+      void mcApi.updateExam?.(examId, updated).catch(() => {});
+    }
+    setScheduleTarget(null);
+  }
+
+  const isDraft = (e: Exam) => !e.assignedTo?.length || e.status === "draft";
+
   function ExamCard({ e }: { e: Exam }) {
     const subs = submissions.filter((s) => s.examId === e.id);
     const needsGrading = subs.filter((s) => !s.fullyGraded).length;
     const isExpired = e.deadline < Date.now();
+    const draft = isDraft(e);
     return (
-      <Card data-testid={`exam-card-${e.id}`}>
+      <Card data-testid={`exam-card-${e.id}`} className={draft ? "border-dashed" : ""}>
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-base">{e.title}</CardTitle>
-            <Badge variant={isExpired ? "secondary" : "default"}>{isExpired ? "Berakhir" : "Aktif"}</Badge>
+            {draft ? (
+              <Badge variant="secondary" className="shrink-0">Draft</Badge>
+            ) : (
+              <Badge variant={isExpired ? "secondary" : "default"} className={!isExpired ? "bg-green-600 shrink-0" : "shrink-0"}>
+                {isExpired ? "Berakhir" : "Aktif"}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -88,20 +281,29 @@ export default function TeacherExams() {
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="outline" className="gap-1"><ClipboardList className="h-3 w-3" />{e.questions.length} soal</Badge>
             <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" />{e.durationMinutes} mnt</Badge>
-            <Badge variant="outline" className="gap-1"><UsersIcon className="h-3 w-3" />{subs.length}/{e.assignedTo.length}</Badge>
+            {!draft && <Badge variant="outline" className="gap-1"><UsersIcon className="h-3 w-3" />{subs.length}/{e.assignedTo.length}</Badge>}
             {e.shuffleQuestions && <Badge variant="outline" className="gap-1"><Shuffle className="h-3 w-3" />Acak Soal</Badge>}
             {needsGrading > 0 && <Badge variant="destructive">{needsGrading} koreksi</Badge>}
           </div>
-          {e.passingScore && (
-            <div className="text-xs text-muted-foreground">KKM: {e.passingScore}%</div>
-          )}
+          {e.passingScore && <div className="text-xs text-muted-foreground">KKM: {e.passingScore}%</div>}
           <div className="text-xs text-muted-foreground">Deadline: {formatDate(e.deadline)}</div>
           <div className="flex gap-2 pt-2 flex-wrap">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/teacher/exams/${e.id}/results`}>
-                <BarChart3 className="h-3 w-3 mr-1" />Hasil
-              </Link>
-            </Button>
+            {draft ? (
+              <Button size="sm" onClick={() => openSchedule(e)} className="gap-1" data-testid={`button-schedule-exam-${e.id}`}>
+                <Send className="h-3.5 w-3.5" />Jadwalkan
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/teacher/exams/${e.id}/results`}>
+                    <BarChart3 className="h-3 w-3 mr-1" />Hasil
+                  </Link>
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => openSchedule(e)} className="gap-1">
+                  <CalendarCheck className="h-3.5 w-3.5" />Ubah Jadwal
+                </Button>
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={() => openEdit(e)}>
               <Pencil className="h-3 w-3 mr-1" />Edit
             </Button>
@@ -120,7 +322,7 @@ export default function TeacherExams() {
         <EmptyHeader>
           <EmptyMedia variant="icon"><ClipboardList className="h-6 w-6" /></EmptyMedia>
           <EmptyTitle>Belum ada {type}</EmptyTitle>
-          <EmptyDescription>Buat {type} pertama untuk siswa Anda.</EmptyDescription>
+          <EmptyDescription>Buat {type} terlebih dahulu, lalu jadwalkan ke siswa.</EmptyDescription>
         </EmptyHeader>
         <EmptyContent><Button onClick={onCreate}><Plus className="h-4 w-4 mr-2" />Buat {type === "ujian" ? "Ujian" : "Tugas"}</Button></EmptyContent>
       </Empty>
@@ -173,13 +375,26 @@ export default function TeacherExams() {
         students={myStudents}
         initialType={newType}
         editing={editingExam}
+        onCreated={(e) => setScheduleTarget(e)}
       />
+
+      {scheduleTarget && (
+        <ScheduleDialog
+          open={!!scheduleTarget}
+          onOpenChange={(o) => { if (!o) setScheduleTarget(null); }}
+          itemTitle={scheduleTarget.title}
+          currentAssigned={scheduleTarget.assignedTo}
+          students={myStudents}
+          onConfirm={(ids) => onScheduled(scheduleTarget.id, ids)}
+        />
+      )}
     </div>
   );
 }
 
+// ── Exam Dialog (content only, no student assignment) ─────────────────────────
 function ExamDialog({
-  open, onOpenChange, teacherId, students, initialType, editing,
+  open, onOpenChange, teacherId, students: _students, initialType, editing, onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -187,6 +402,7 @@ function ExamDialog({
   students: User[];
   initialType: "exam" | "tugas";
   editing: Exam | null;
+  onCreated?: (e: Exam) => void;
 }) {
   const isEditing = !!editing;
 
@@ -197,7 +413,6 @@ function ExamDialog({
     if (editing) return new Date(editing.deadline).toISOString().slice(0, 10);
     const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10);
   });
-  const [assigned, setAssigned] = useState<string[]>(editing?.assignedTo ?? students.map((s) => s.id));
   const [shuffleQ, setShuffleQ] = useState(editing?.shuffleQuestions ?? false);
   const [shuffleO, setShuffleO] = useState(editing?.shuffleOptions ?? false);
   const [passingScore, setPassingScore] = useState(String(editing?.passingScore ?? 70));
@@ -216,7 +431,6 @@ function ExamDialog({
         const d = new Date(); d.setDate(d.getDate() + 7);
         setDeadline(d.toISOString().slice(0, 10));
       }
-      setAssigned(editing?.assignedTo ?? students.map((s) => s.id));
       setShuffleQ(editing?.shuffleQuestions ?? false);
       setShuffleO(editing?.shuffleOptions ?? false);
       setPassingScore(String(editing?.passingScore ?? 70));
@@ -265,7 +479,9 @@ function ExamDialog({
       questions,
       durationMinutes: parseInt(duration),
       deadline: new Date(deadline).getTime() + 24 * 60 * 60 * 1000 - 1,
-      assignedTo: assigned,
+      // Keep existing assignedTo when editing; empty draft for new
+      assignedTo: editing?.assignedTo ?? [],
+      status: editing?.status ?? "draft",
       createdBy: editing?.createdBy ?? teacherId,
       createdAt: editing?.createdAt ?? Date.now(),
       type: initialType,
@@ -274,21 +490,14 @@ function ExamDialog({
       passingScore: parseInt(passingScore),
     };
 
-    const all = read("exams", []);
+    const all = read<Exam[]>("exams", []);
     if (isEditing) {
       write("exams", all.map((e) => (e.id === exam.id ? exam : e)));
       void mcApi.updateExam?.(exam.id, exam).catch(() => {});
     } else {
       write("exams", [...all, exam]);
-      const notifs = read("notifications", []);
-      const newNotifs: AppNotification[] = assigned.map((sid) => ({
-        id: uid("n_"), userId: sid, type: "new_exam",
-        title: `${initialType === "tugas" ? "Tugas" : "Ujian"} baru tersedia`,
-        message: `${exam.title} telah dibagikan.`,
-        link: "/student/exams", createdAt: Date.now(), read: false,
-      }));
-      write("notifications", [...notifs, ...newNotifs]);
-      void mcApi.createExam({ ...exam, notifications: newNotifs }).catch(() => {});
+      void mcApi.createExam(exam).catch(() => {});
+      onCreated?.(exam);
     }
     onOpenChange(false);
   }
@@ -300,6 +509,11 @@ function ExamDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? `Edit ${typeLabel}` : `Buat ${typeLabel} Baru`}</DialogTitle>
+          {!isEditing && (
+            <p className="text-sm text-muted-foreground">
+              Buat soal terlebih dahulu. Setelah disimpan, jadwalkan ke kelas atau siswa.
+            </p>
+          )}
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
@@ -344,28 +558,6 @@ function ExamDialog({
             </div>
           </div>
 
-          {/* Students */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Bagikan ke siswa</Label>
-              <div className="flex gap-2">
-                <button type="button" className="text-xs text-primary underline" onClick={() => setAssigned(students.map((s) => s.id))}>Pilih semua</button>
-                <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setAssigned([])}>Hapus semua</button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 border rounded-md p-3 max-h-32 overflow-y-auto">
-              {students.length === 0 ? (
-                <p className="text-sm text-muted-foreground col-span-2">Belum ada siswa terhubung.</p>
-              ) : students.map((s) => (
-                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={assigned.includes(s.id)}
-                    onCheckedChange={(c) => setAssigned((p) => c ? [...p, s.id] : p.filter((id) => id !== s.id))} />
-                  {s.name}
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* Questions */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -401,7 +593,6 @@ function ExamDialog({
                       onChange={(e) => updateQ(q.id, { question: e.target.value })} rows={2}
                       data-testid={`input-question-${idx}`} />
 
-                    {/* MC Options */}
                     {q.type === "mc" && (
                       <div className="space-y-2">
                         <Label className="text-xs">Pilihan (radio = jawaban benar)</Label>
@@ -422,7 +613,6 @@ function ExamDialog({
                       </div>
                     )}
 
-                    {/* TF */}
                     {q.type === "tf" && (
                       <div>
                         <Label className="text-xs mb-2 block">Jawaban benar</Label>
@@ -440,7 +630,6 @@ function ExamDialog({
                       </div>
                     )}
 
-                    {/* Fill */}
                     {q.type === "fill" && (
                       <div>
                         <Label className="text-xs">Kunci jawaban</Label>
@@ -450,7 +639,6 @@ function ExamDialog({
                       </div>
                     )}
 
-                    {/* Points */}
                     <div className="flex items-center gap-2">
                       <Label className="text-xs">Nilai:</Label>
                       <Select value={String(q.points)} onValueChange={(v) => updateQ(q.id, { points: parseInt(v) })}>
@@ -471,7 +659,7 @@ function ExamDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
           <Button onClick={save} data-testid="button-save-exam">
-            {isEditing ? "Simpan Perubahan" : "Buat & Bagikan"}
+            {isEditing ? "Simpan Perubahan" : "Simpan Draft"}
           </Button>
         </DialogFooter>
       </DialogContent>
