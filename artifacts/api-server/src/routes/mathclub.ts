@@ -211,8 +211,18 @@ router.delete("/mc/users/:id", requireTeacher, async (req, res) => {
 });
 
 // ── Authenticated: class messages ─────────────────────────────────────────────
+// Students may only read their own kelas; teachers may read any.
 router.get("/mc/messages/:kelas", requireAuth, async (req, res) => {
   const { kelas } = req.params;
+  if (req.jwtUser!.role === "student") {
+    // Verify the student belongs to this kelas
+    const [student] = await db.select({ kelas: mcUsersTable.kelas })
+      .from(mcUsersTable).where(eq(mcUsersTable.id, req.jwtUser!.userId));
+    if (!student || student.kelas !== kelas) {
+      res.status(403).json({ error: "Tidak dapat mengakses ruang kelas lain." });
+      return;
+    }
+  }
   const rows = await db
     .select()
     .from(mcClassMessagesTable)
@@ -221,13 +231,24 @@ router.get("/mc/messages/:kelas", requireAuth, async (req, res) => {
   res.json(rows.map((r: typeof mcClassMessagesTable.$inferSelect) => ({ ...r, createdAt: new Date(r.createdAt).getTime() })));
 });
 
+// Always bind message author to the authenticated user — body userId is ignored.
 router.post("/mc/messages", requireAuth, async (req, res) => {
-  const { id, kelas, userId, text } = req.body as {
-    id: string; kelas: string; userId: string; text: string;
+  const { id, kelas, text } = req.body as {
+    id: string; kelas: string; userId?: string; text: string;
   };
-  if (!id || !kelas || !userId || !text?.trim()) {
+  if (!id || !kelas || !text?.trim()) {
     res.status(400).json({ error: "Data tidak lengkap." });
     return;
+  }
+  const userId = req.jwtUser!.userId;
+  // Students may only post in their own kelas
+  if (req.jwtUser!.role === "student") {
+    const [student] = await db.select({ kelas: mcUsersTable.kelas })
+      .from(mcUsersTable).where(eq(mcUsersTable.id, userId));
+    if (!student || student.kelas !== kelas) {
+      res.status(403).json({ error: "Tidak dapat mengirim pesan ke ruang kelas lain." });
+      return;
+    }
   }
   const [created] = await db
     .insert(mcClassMessagesTable)
@@ -236,7 +257,13 @@ router.post("/mc/messages", requireAuth, async (req, res) => {
   res.status(201).json({ ...created, createdAt: new Date(created.createdAt).getTime() });
 });
 
+// Delete: only own messages or teacher can delete any
 router.delete("/mc/messages/:id", requireAuth, async (req, res) => {
+  const [msg] = await db.select().from(mcClassMessagesTable).where(eq(mcClassMessagesTable.id, req.params.id));
+  if (msg && req.jwtUser!.role !== "teacher" && msg.userId !== req.jwtUser!.userId) {
+    res.status(403).json({ error: "Tidak dapat menghapus pesan milik pengguna lain." });
+    return;
+  }
   await db.delete(mcClassMessagesTable).where(eq(mcClassMessagesTable.id, req.params.id));
   res.json({ ok: true });
 });
