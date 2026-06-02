@@ -14,7 +14,6 @@ const DEFAULT_CLASSES: string[] = [
 
 const CLASSES_KEY = "mc_classes";
 const TEACHER_CODE_KEY = "teacher_registration_code";
-const DEFAULT_TEACHER_CODE = "GURU2024";
 const BCRYPT_ROUNDS = 10;
 
 async function hashPassword(plain: string): Promise<string> {
@@ -35,9 +34,17 @@ async function getClasses(): Promise<string[]> {
 }
 
 async function getTeacherCode(): Promise<string> {
+  // DB-stored code takes priority (set by teacher admin via PUT /mc/teacher-code)
   const [row] = await db.select().from(mcSettingsTable).where(eq(mcSettingsTable.key, TEACHER_CODE_KEY));
-  if (!row) return DEFAULT_TEACHER_CODE;
-  return row.value;
+  if (row?.value) return row.value;
+  // Fall back to environment variable — required in production, optional in dev
+  const envCode = process.env["TEACHER_REGISTRATION_CODE"];
+  if (envCode) return envCode;
+  if (process.env["NODE_ENV"] === "production") {
+    throw new Error("TEACHER_REGISTRATION_CODE must be configured in production.");
+  }
+  // Dev-only fallback — never disclosed in UI
+  return "dev-teacher-only";
 }
 
 // ── Public: login ─────────────────────────────────────────────────────────────

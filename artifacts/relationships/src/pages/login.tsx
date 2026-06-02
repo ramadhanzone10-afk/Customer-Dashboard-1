@@ -387,7 +387,7 @@ export default function LoginPage() {
                             required
                           />
                           <p className="text-xs text-muted-foreground">
-                            Kode diberikan oleh administrator. Default: GURU2024
+                            Kode diberikan oleh administrator sekolah.
                           </p>
                         </div>
                       )}
