@@ -1,0 +1,78 @@
+PROMPT APLIKASI PEMBELAJARAN ONLINE – BIMBEL MATHCLUB
+
+Buatkan aplikasi pembelajaran online bernama MathClub dengan sistem dua jenis akun: Guru dan Siswa. Aplikasi harus memiliki tampilan modern, sederhana, dan mudah digunakan.
+
+🔐 1. Sistem Akun
+Terdapat 2 role:
+Guru
+Siswa
+Login menggunakan email & password
+Dashboard berbeda untuk guru dan siswa
+👨‍🏫 2. Fitur Akun Guru
+
+Guru memiliki fitur sebagai berikut:
+
+📊 a. Monitoring Siswa
+Melihat daftar siswa
+Melihat progres belajar siswa (materi yang sudah dipelajari, nilai ujian)
+Statistik performa siswa (rata-rata nilai, tingkat penyelesaian)
+📚 b. Manajemen Materi
+Membuat materi pembelajaran:
+Bisa diketik langsung
+Bisa upload file (PDF, dokumen)
+Materi bisa dikirim ke siswa tertentu atau grup
+Bisa menambahkan timer belajar (countdown) pada materi
+📝 c. Manajemen Ujian
+Membuat soal ujian:
+Pilihan ganda
+Essay
+Menentukan waktu pengerjaan (timer mundur)
+Mengatur tanggal dan batas waktu
+Mengirim ujian ke siswa
+Melihat hasil ujian siswa
+Koreksi otomatis (pilihan ganda) & manual (essay)
+💰 d. Manajemen Pembayaran
+Melihat status pembayaran siswa per bulan
+Data:
+Sudah bayar / belum
+Tanggal pembayaran
+Notifikasi siswa yang belum bayar
+👨‍🎓 3. Fitur Akun Siswa
+📚 a. Akses Materi
+Melihat materi dari guru
+Membuka file PDF / dokumen
+Mengikuti materi dengan timer (jika diaktifkan)
+📝 b. Ujian
+Mengerjakan ujian:
+Pilihan ganda & essay
+Terdapat timer mundur otomatis
+Submit otomatis jika waktu habis
+Melihat hasil nilai
+📈 c. Progres Belajar
+Melihat:
+Materi yang sudah selesai
+Nilai ujian
+Grafik perkembangan
+💳 d. Pembayaran
+Halaman pembayaran bulanan
+Terdapat:
+Nominal tagihan
+Status pembayaran
+Link pembayaran (transfer / e-wallet)
+Upload bukti pembayaran (gambar/file)
+Status diverifikasi oleh guru
+⚙️ 4. Fitur Tambahan
+Notifikasi:
+Materi baru
+Ujian baru
+Pengingat pembayaran
+Sistem deadline & timer real-time
+UI responsif (bisa di HP & laptop)
+Penyimpanan data berbasis cloud
+🎯 5. Tujuan Aplikasi
+
+Aplikasi ini bertujuan untuk:
+
+Mempermudah guru dalam mengelola pembelajaran
+Memantau perkembangan siswa secara real-time
+Memudahkan sistem ujian dan pembayaran dalam satu platform

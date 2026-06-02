@@ -1,22 +1,24 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Relationship Tracker API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: workspace
+  - name: stages
+  - name: contacts
+  - name: interactions
+  - name: stats
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +26,613 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /workspace:
+    get:
+      operationId: getWorkspace
+      tags: [workspace]
+      summary: Get the single workspace configuration (relationship type + pipeline defaults)
+      responses:
+        "200":
+          description: Workspace
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+    put:
+      operationId: updateWorkspace
+      tags: [workspace]
+      summary: Update workspace configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+
+  /workspace/initialize:
+    post:
+      operationId: initializeWorkspace
+      tags: [workspace]
+      summary: Complete first-run setup (choose relationship type + stage names)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceInit"
+      responses:
+        "200":
+          description: Initialized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+
+  /stages:
+    get:
+      operationId: listStages
+      tags: [stages]
+      summary: List pipeline stages in order
+      responses:
+        "200":
+          description: Stages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stage"
+    post:
+      operationId: createStage
+      tags: [stages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewStage"
+      responses:
+        "200":
+          description: Stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stage"
+
+  /stages/reorder:
+    post:
+      operationId: reorderStages
+      tags: [stages]
+      summary: Set the full order of stages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageReorder"
+      responses:
+        "200":
+          description: Reordered
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stage"
+
+  /stages/{id}:
+    patch:
+      operationId: updateStage
+      tags: [stages]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StageUpdate"
+      responses:
+        "200":
+          description: Stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stage"
+    delete:
+      operationId: deleteStage
+      tags: [stages]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /contacts:
+    get:
+      operationId: listContacts
+      tags: [contacts]
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: stageId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewContact"
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    get:
+      operationId: getContact
+      tags: [contacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    patch:
+      operationId: updateContact
+      tags: [contacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /contacts/{id}/interactions:
+    get:
+      operationId: listInteractions
+      tags: [interactions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Interactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Interaction"
+    post:
+      operationId: createInteraction
+      tags: [interactions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewInteraction"
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Interaction"
+
+  /interactions/{id}:
+    delete:
+      operationId: deleteInteraction
+      tags: [interactions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /tags:
+    get:
+      operationId: listTags
+      tags: [stats]
+      summary: All unique tags with usage counts
+      responses:
+        "200":
+          description: Tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TagCount"
+
+  /stats/summary:
+    get:
+      operationId: getSummary
+      tags: [stats]
+      summary: Top-level counts and recent activity
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+
+  /activity/recent:
+    get:
+      operationId: recentActivity
+      tags: [stats]
+      summary: Latest interactions across all contacts
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Workspace:
+      type: object
+      required: [id, initialized, relationshipType, entityLabel, entityLabelPlural, affiliationLabel, createdAt]
+      properties:
+        id:
+          type: string
+        initialized:
+          type: boolean
+        relationshipType:
+          type: string
+          description: One of 'sales', 'clients', 'investors', 'candidates', 'personal', 'custom'
+        entityLabel:
+          type: string
+          description: Singular label for a contact (e.g. 'Lead', 'Client')
+        entityLabelPlural:
+          type: string
+        affiliationLabel:
+          type: string
+          description: Label used for company/affiliation field
+        createdAt:
+          type: string
+          format: date-time
+
+    WorkspaceUpdate:
+      type: object
+      properties:
+        relationshipType:
+          type: string
+        entityLabel:
+          type: string
+        entityLabelPlural:
+          type: string
+        affiliationLabel:
+          type: string
+
+    WorkspaceInit:
+      type: object
+      required: [relationshipType, entityLabel, entityLabelPlural, affiliationLabel, stageNames]
+      properties:
+        relationshipType:
+          type: string
+        entityLabel:
+          type: string
+        entityLabelPlural:
+          type: string
+        affiliationLabel:
+          type: string
+        stageNames:
+          type: array
+          items:
+            type: string
+
+    Stage:
+      type: object
+      required: [id, name, position, color, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        position:
+          type: integer
+        color:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    NewStage:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+
+    StageUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+
+    StageReorder:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+
+    Contact:
+      type: object
+      required: [id, name, tags, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        affiliation:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        stageId:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    NewContact:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        affiliation:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        stageId:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+          nullable: true
+
+    ContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        affiliation:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        stageId:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+          nullable: true
+
+    Interaction:
+      type: object
+      required: [id, contactId, kind, body, occurredAt, createdAt]
+      properties:
+        id:
+          type: string
+        contactId:
+          type: string
+        kind:
+          type: string
+          description: "One of note, call, meeting, email"
+        body:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    NewInteraction:
+      type: object
+      required: [kind, body]
+      properties:
+        kind:
+          type: string
+        body:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+
+    TagCount:
+      type: object
+      required: [tag, count]
+      properties:
+        tag:
+          type: string
+        count:
+          type: integer
+
+    Summary:
+      type: object
+      required: [totalContacts, contactsThisWeek, interactionsThisWeek, byStage]
+      properties:
+        totalContacts:
+          type: integer
+        contactsThisWeek:
+          type: integer
+        interactionsThisWeek:
+          type: integer
+        byStage:
+          type: array
+          items:
+            type: object
+            required: [stageId, stageName, count]
+            properties:
+              stageId:
+                type: string
+              stageName:
+                type: string
+              count:
+                type: integer
+
+    ActivityItem:
+      type: object
+      required: [id, contactId, contactName, kind, body, occurredAt]
+      properties:
+        id:
+          type: string
+        contactId:
+          type: string
+        contactName:
+          type: string
+        kind:
+          type: string
+        body:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
