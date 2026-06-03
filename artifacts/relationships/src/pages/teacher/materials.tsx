@@ -219,22 +219,43 @@ export function ExamDialog({
           <div>
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <Label className="text-base font-semibold">Soal ({questions.length})</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {(["mc", "mc-complex", "tf", "fill", "essay"] as const).map((t) => (
-                  <Button key={t} size="sm" variant="outline" onClick={() => addQuestion(t)} data-testid={`button-add-${t}`}>
-                    {QTYPE_ICONS[t]}<span className="ml-1 text-xs">+ {QTYPE_LABELS[t]}</span>
-                  </Button>
-                ))}
-              </div>
+              <Button size="sm" onClick={() => addQuestion("mc")} data-testid="button-add-question">
+                <Plus className="h-4 w-4 mr-1" />Tambah Soal
+              </Button>
             </div>
             <div className="space-y-4">
               {questions.map((q, idx) => (
                 <Card key={q.id}>
                   <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge>{idx + 1}</Badge>
-                        <Badge variant="outline" className="gap-1">{QTYPE_ICONS[q.type]}{QTYPE_LABELS[q.type]}</Badge>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="shrink-0">No. {idx + 1}</Badge>
+                        <Select value={q.type} onValueChange={(v) => {
+                          const t = v as Question["type"];
+                          const patch: Partial<Question> = { type: t };
+                          if (t === "mc" || t === "mc-complex") { patch.options = q.options?.length ? q.options : ["", "", "", ""]; patch.correctAnswer = 0; if (t === "mc-complex") patch.correctAnswers = []; }
+                          if (t === "tf") { patch.correctAnswer = 0; }
+                          if (t === "fill") { patch.fillAnswer = q.fillAnswer ?? ""; }
+                          updateQ(q.id, patch);
+                        }}>
+                          <SelectTrigger className="h-7 text-xs w-40 gap-1">
+                            <span className="flex items-center gap-1">{QTYPE_ICONS[q.type]}<SelectValue /></span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(["mc", "mc-complex", "tf", "fill", "essay"] as const).map((t) => (
+                              <SelectItem key={t} value={t} className="text-xs">
+                                <span className="flex items-center gap-1.5">{QTYPE_ICONS[t]}{QTYPE_LABELS[t]}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-xs text-muted-foreground">Poin:</Label>
+                          <Select value={String(q.points)} onValueChange={(v) => updateQ(q.id, { points: parseInt(v) })}>
+                            <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>{[5, 10, 15, 20, 25, 30, 40, 50].map((n) => <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveQ(idx, -1)} disabled={idx === 0}>↑</Button>
@@ -312,13 +333,6 @@ export function ExamDialog({
                         <Input value={q.fillAnswer ?? ""} onChange={(e) => updateQ(q.id, { fillAnswer: e.target.value })} placeholder="Jawaban (tidak case-sensitive)..." className="mt-1" />
                       </div>
                     )}
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs">Nilai:</Label>
-                      <Select value={String(q.points)} onValueChange={(v) => updateQ(q.id, { points: parseInt(v) })}>
-                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                        <SelectContent>{[5, 10, 15, 20, 25, 30, 40, 50].map((n) => <SelectItem key={n} value={String(n)}>{n} poin</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -828,7 +842,6 @@ export default function TeacherMaterials() {
           </TabsList>
           <div className="flex gap-2">
             <Button onClick={() => startCreate("materi")} size="sm" data-testid="button-new-material"><Plus className="h-4 w-4 mr-1" />Materi Baru</Button>
-            <Button onClick={() => startCreate("soal")} size="sm" variant="outline" data-testid="button-new-soal"><Plus className="h-4 w-4 mr-1" />Soal Baru</Button>
             <Button onClick={() => { setEditingExam(null); setExamOpen(true); }} size="sm" variant="outline" data-testid="button-new-exam"><Plus className="h-4 w-4 mr-1" />Ujian Baru</Button>
           </div>
         </div>
