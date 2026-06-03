@@ -109,6 +109,25 @@ export interface QuestionBankItem {
   createdAt: number;
 }
 
+export interface MaterialBankItem {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  subject?: string;
+  bab?: string;
+  materialType?: "materi" | "soal";
+  fileName?: string;
+  fileDataUrl?: string;
+  imageDataUrl?: string;
+  videoUrl?: string;
+  videoFileName?: string;
+  videoDataUrl?: string;
+  timerMinutes?: number;
+  createdBy: string;
+  createdAt: number;
+}
+
 export type PaymentStatus = "unpaid" | "pending" | "paid";
 
 export interface Payment {

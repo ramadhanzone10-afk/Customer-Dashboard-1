@@ -29,7 +29,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
-import type { Material, Exam, Question, User, AppNotification, ExamSubmission, QuestionBankItem } from "@/lib/types";
+import type { Material, Exam, Question, User, AppNotification, ExamSubmission, QuestionBankItem, MaterialBankItem } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { mcApi } from "@/lib/api-client";
 
@@ -86,6 +86,141 @@ function toDatetimeLocal(ts: number) {
 function fromDatetimeLocal(s: string): number { return new Date(s).getTime(); }
 function defaultDeadline(days = 7) {
   const d = new Date(); d.setDate(d.getDate() + days); d.setHours(23, 59, 0, 0); return toDatetimeLocal(d.getTime());
+}
+
+// ── Save-to-Bank Dialog (for Question Bank) ───────────────────────────────────
+function SaveToBankDialog({
+  open, onOpenChange, question, examTitle, teacherId,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  question: Question | null; examTitle: string; teacherId: string;
+}) {
+  const bank = useStore<QuestionBankItem[]>("questionBank", []);
+  const [subject, setSubject] = useState("");
+  const [bab, setBab] = useState("");
+
+  useMemo(() => { if (open) { setSubject(""); setBab(""); } }, [open]);
+
+  function save() {
+    if (!question) return;
+    const already = bank.some((b) => b.createdBy === teacherId && b.question.question === question.question && b.question.type === question.type);
+    if (already) { alert("Soal ini sudah ada di bank soal."); return; }
+    const item: QuestionBankItem = {
+      id: uid("bk_"), question, subject: subject.trim() || undefined,
+      bab: bab.trim() || undefined, sourceExamTitle: examTitle || undefined,
+      createdBy: teacherId, createdAt: Date.now(),
+    };
+    write("questionBank", [...bank, item]);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><BookmarkPlus className="h-4 w-4 text-primary" />Simpan ke Bank Soal</DialogTitle>
+          <p className="text-sm text-muted-foreground">Tambahkan tag agar mudah ditemukan kembali.</p>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div><Label className="text-sm">Mata Pelajaran (opsional)</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Matematika" className="mt-1" /></div>
+          <div><Label className="text-sm">Bab / Topik (opsional)</Label><Input value={bab} onChange={(e) => setBab(e.target.value)} placeholder="Bab 3 – Aljabar" className="mt-1" /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={save} className="gap-1"><BookmarkPlus className="h-4 w-4" />Simpan</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Material Bank Dialog ───────────────────────────────────────────────────────
+function MaterialBankDialog({
+  open, onOpenChange, teacherId, onUse,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  teacherId: string; onUse: (item: MaterialBankItem) => void;
+}) {
+  const bank = useStore<MaterialBankItem[]>("materialBank", []);
+  const myBank = useMemo(() => bank.filter((b) => b.createdBy === teacherId).sort((a, b) => b.createdAt - a.createdAt), [bank, teacherId]);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<"all" | "materi" | "soal">("all");
+
+  const filtered = useMemo(() => myBank.filter((b) => {
+    if (filterType !== "all" && (b.materialType ?? "materi") !== filterType) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!b.title.toLowerCase().includes(q) && !b.subject?.toLowerCase().includes(q) && !b.bab?.toLowerCase().includes(q) && !b.description?.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }), [myBank, search, filterType]);
+
+  function deleteFromBank(id: string) { write("materialBank", bank.filter((b) => b.id !== id)); }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Library className="h-5 w-5 text-primary" />Bank Materi</DialogTitle>
+          <p className="text-sm text-muted-foreground">{myBank.length} materi tersimpan · Klik "Gunakan" untuk membuat salinan baru.</p>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Cari judul, mapel, bab..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
+            </div>
+            <Select value={filterType} onValueChange={(v) => setFilterType(v as "all" | "materi" | "soal")}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">Semua</SelectItem>
+                <SelectItem value="materi" className="text-xs">Materi</SelectItem>
+                <SelectItem value="soal" className="text-xs">Soal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {myBank.length === 0 ? (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              <Library className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              Belum ada materi di bank. Klik "Simpan ke Bank" di dialog edit materi untuk menyimpannya.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">Tidak ada yang cocok.</div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((item) => (
+                <div key={item.id} className="border rounded-lg p-3 hover:bg-accent/50 transition-colors">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        <Badge variant="outline" className="text-xs h-5">{(item.materialType ?? "materi") === "materi" ? "Materi" : "Soal"}</Badge>
+                        {item.subject && <Badge variant="secondary" className="text-xs h-5">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
+                        {item.timerMinutes && <Badge variant="secondary" className="text-xs h-5 gap-1"><Clock className="h-3 w-3" />{item.timerMinutes} mnt</Badge>}
+                      </div>
+                      <p className="text-sm font-medium">{item.title}</p>
+                      {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
+                        <Plus className="h-3.5 w-3.5" />Gunakan
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteFromBank(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ── Question Bank Dialog ──────────────────────────────────────────────────────
@@ -221,6 +356,7 @@ export function ExamDialog({
     { id: uid("q_"), type: "mc", question: "", options: ["", "", "", ""], correctAnswer: 0, points: 10 },
   ]);
   const [bankOpen, setBankOpen] = useState(false);
+  const [saveToBankQ, setSaveToBankQ] = useState<Question | null>(null);
   const bank = useStore<QuestionBankItem[]>("questionBank", []);
 
   useMemo(() => {
@@ -257,18 +393,6 @@ export function ExamDialog({
   function onQPdf(id: string, e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader(); r.onload = () => updateQ(id, { pdfDataUrl: r.result as string, pdfFileName: f.name }); r.readAsDataURL(f);
-  }
-
-  function saveToBank(q: Question) {
-    const already = bank.some((b) => b.createdBy === teacherId && b.question.question === q.question.trim() && b.question.type === q.type);
-    if (already) { alert("Soal ini sudah ada di bank soal."); return; }
-    const item: QuestionBankItem = {
-      id: uid("bk_"), question: q,
-      sourceExamTitle: title.trim() || undefined,
-      createdBy: teacherId, createdAt: Date.now(),
-    };
-    write("questionBank", [...bank, item]);
-    alert("Soal berhasil disimpan ke bank soal!");
   }
 
   function addFromBank(qs: Question[]) {
@@ -404,7 +528,7 @@ export function ExamDialog({
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Simpan ke Bank Soal" onClick={() => saveToBank(q)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Simpan ke Bank Soal" onClick={() => setSaveToBankQ(q)}>
                           <BookmarkPlus className="h-3.5 w-3.5" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveQ(idx, -1)} disabled={idx === 0}>↑</Button>
@@ -493,12 +617,8 @@ export function ExamDialog({
           <Button onClick={save} data-testid="button-save-exam">{editing ? "Simpan Perubahan" : "Simpan Draft"}</Button>
         </DialogFooter>
       </DialogContent>
-      <QuestionBankDialog
-        open={bankOpen}
-        onOpenChange={setBankOpen}
-        teacherId={teacherId}
-        onAddQuestions={addFromBank}
-      />
+      <QuestionBankDialog open={bankOpen} onOpenChange={setBankOpen} teacherId={teacherId} onAddQuestions={addFromBank} />
+      <SaveToBankDialog open={!!saveToBankQ} onOpenChange={(o) => { if (!o) setSaveToBankQ(null); }} question={saveToBankQ} examTitle={title} teacherId={teacherId} />
     </Dialog>
   );
 }
@@ -722,8 +842,29 @@ function MaterialDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button variant="outline" className="gap-1" onClick={() => {
+            if (!title.trim()) { alert("Isi judul terlebih dahulu."); return; }
+            const bankAll = read("materialBank", []);
+            const already = bankAll.some((b: MaterialBankItem) => b.createdBy === teacherId && b.title === title.trim());
+            if (already) { alert("Materi dengan judul ini sudah ada di bank materi."); return; }
+            const item: MaterialBankItem = {
+              id: uid("mb_"), title: title.trim(), description: description.trim(), content,
+              subject: subject.trim() || undefined, bab: bab.trim() || undefined,
+              materialType, fileName: fileName || undefined, fileDataUrl: fileDataUrl || undefined,
+              imageDataUrl: imageDataUrl || undefined,
+              videoUrl: videoTab === "link" && videoUrl.trim() ? videoUrl.trim() : undefined,
+              videoFileName: videoTab === "upload" && videoFileName ? videoFileName : undefined,
+              videoDataUrl: videoTab === "upload" && videoDataUrl ? videoDataUrl : undefined,
+              timerMinutes: timerMinutes ? parseInt(timerMinutes) : undefined,
+              createdBy: teacherId, createdAt: Date.now(),
+            };
+            write("materialBank", [...bankAll, item]);
+            alert("Materi berhasil disimpan ke bank materi!");
+          }}>
+            <BookmarkPlus className="h-4 w-4" />Simpan ke Bank
+          </Button>
           <Button onClick={save} data-testid="button-save-material">{editing ? "Simpan Perubahan" : "Simpan Draft"}</Button>
         </DialogFooter>
       </DialogContent>
@@ -753,6 +894,8 @@ export default function TeacherMaterials() {
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [newMaterialType, setNewMaterialType] = useState<"materi" | "soal">("materi");
   const [matScheduleTarget, setMatScheduleTarget] = useState<Material | null>(null);
+  const [matBankOpen, setMatBankOpen] = useState(false);
+  const matBank = useStore<MaterialBankItem[]>("materialBank", []);
 
   // Exam state
   const [examOpen, setExamOpen] = useState(false);
@@ -766,6 +909,20 @@ export default function TeacherMaterials() {
 
   function startCreate(type: "materi" | "soal") { setEditingMaterial(null); setNewMaterialType(type); setMatOpen(true); }
   function startEdit(m: Material) { setEditingMaterial(m); setNewMaterialType(m.materialType ?? "materi"); setMatOpen(true); }
+  function startFromBank(item: MaterialBankItem) {
+    const draft: Material = {
+      id: uid("m_"), title: item.title, description: item.description ?? "", content: item.content ?? "",
+      subject: item.subject, bab: item.bab, materialType: item.materialType ?? "materi",
+      fileName: item.fileName, fileDataUrl: item.fileDataUrl,
+      imageDataUrl: item.imageDataUrl, videoUrl: item.videoUrl,
+      videoFileName: item.videoFileName, videoDataUrl: item.videoDataUrl,
+      timerMinutes: item.timerMinutes,
+      createdBy: user!.id, assignedTo: [], status: "draft", createdAt: Date.now(),
+    };
+    setEditingMaterial(draft);
+    setNewMaterialType(item.materialType ?? "materi");
+    setMatOpen(true);
+  }
   function openMatSchedule(m: Material) { setMatScheduleTarget(m); }
 
   function deleteMaterial(id: string) {
@@ -995,7 +1152,13 @@ export default function TeacherMaterials() {
             <TabsTrigger value="soal" className="gap-1.5"><PenLine className="h-3.5 w-3.5" />Soal ({soalList.length})</TabsTrigger>
             <TabsTrigger value="ujian" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" />Ujian ({myExams.length})</TabsTrigger>
           </TabsList>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setMatBankOpen(true)} className="gap-1">
+              <Library className="h-4 w-4" />Bank Materi
+              {matBank.filter((b) => b.createdBy === user!.id).length > 0 && (
+                <Badge variant="secondary" className="h-4 text-xs px-1 ml-0.5">{matBank.filter((b) => b.createdBy === user!.id).length}</Badge>
+              )}
+            </Button>
             <Button onClick={() => startCreate("materi")} size="sm" data-testid="button-new-material"><Plus className="h-4 w-4 mr-1" />Materi Baru</Button>
             <Button onClick={() => { setEditingExam(null); setExamOpen(true); }} size="sm" variant="outline" data-testid="button-new-exam"><Plus className="h-4 w-4 mr-1" />Ujian Baru</Button>
           </div>
@@ -1028,6 +1191,7 @@ export default function TeacherMaterials() {
       {/* Dialogs */}
       <MaterialDialog open={matOpen} onOpenChange={setMatOpen} editing={editingMaterial} materialType={newMaterialType} teacherId={user!.id} onCreated={(m) => setMatScheduleTarget(m)} />
       <ExamDialog open={examOpen} onOpenChange={setExamOpen} teacherId={user!.id} editing={editingExam} onCreated={(e) => setExamScheduleTarget(e)} />
+      <MaterialBankDialog open={matBankOpen} onOpenChange={setMatBankOpen} teacherId={user!.id} onUse={startFromBank} />
 
       {matScheduleTarget && (
         <ScheduleDialog open={!!matScheduleTarget} onOpenChange={(o) => { if (!o) setMatScheduleTarget(null); }}

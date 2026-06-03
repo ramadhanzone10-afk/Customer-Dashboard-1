@@ -7,6 +7,8 @@ import type {
   Payment,
   AppNotification,
   ClassMessage,
+  QuestionBankItem,
+  MaterialBankItem,
 } from "./types";
 
 const PREFIX = "mathclub:v1:";
@@ -22,6 +24,8 @@ type StoreMap = {
   session: { userId: string } | null;
   classes: string[];
   classMessages: ClassMessage[];
+  questionBank: QuestionBankItem[];
+  materialBank: MaterialBankItem[];
 };
 
 type Listener = () => void;
