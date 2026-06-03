@@ -147,6 +147,9 @@ function MaterialBankDialog({
   const [filterSubject, setFilterSubject] = useState("all");
   const [filterBab, setFilterBab] = useState("all");
   const [viewMode, setViewMode] = useState<"group" | "list">("group");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBab, setEditBab] = useState("");
 
   const subjects = useMemo(() => [...new Set(myBank.map((b) => b.subject).filter(Boolean) as string[])].sort(), [myBank]);
   const babs = useMemo(() => {
@@ -181,39 +184,75 @@ function MaterialBankDialog({
   }, [filtered]);
 
   function deleteFromBank(id: string) { write("materialBank", bank.filter((b) => b.id !== id)); }
+  function startEdit(item: MaterialBankItem) { setEditingId(item.id); setEditSubject(item.subject ?? ""); setEditBab(item.bab ?? ""); }
+  function cancelEdit() { setEditingId(null); }
+  function saveEdit(id: string) {
+    write("materialBank", bank.map((b) => b.id === id ? { ...b, subject: editSubject.trim() || undefined, bab: editBab.trim() || undefined } : b));
+    setEditingId(null);
+  }
 
   function MatItem({ item }: { item: MaterialBankItem }) {
+    const isEditing = editingId === item.id;
     return (
-      <div className="border rounded-lg p-3.5 bg-card hover:bg-accent/30 transition-colors">
+      <div className={`border rounded-lg p-3.5 bg-card transition-colors ${isEditing ? "border-primary ring-1 ring-primary/20" : "hover:bg-accent/30"}`}>
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0 space-y-2">
             <div>
               <p className="text-sm font-semibold leading-snug">{item.title}</p>
               {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {item.timerMinutes && <Badge variant="secondary" className="text-xs gap-1"><Clock className="h-3 w-3" />{item.timerMinutes} mnt</Badge>}
-              {item.fileName && <Badge variant="outline" className="text-xs gap-1"><FileText className="h-3 w-3" />PDF</Badge>}
-              {item.imageDataUrl && <Badge variant="outline" className="text-xs gap-1"><ImageIcon className="h-3 w-3" />Gambar</Badge>}
-              {(item.videoUrl || item.videoDataUrl) && <Badge variant="outline" className="text-xs gap-1"><Video className="h-3 w-3" />Video</Badge>}
-              {item.content && item.content.replace(/<[^>]+>/g, "").trim() && (
-                <Badge variant="outline" className="text-xs gap-1"><BookOpen className="h-3 w-3" />Teks</Badge>
-              )}
-            </div>
-            {item.content && item.content.replace(/<[^>]+>/g, "").trim() && (
-              <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 line-clamp-2 font-mono-like">
-                {item.content.replace(/<[^>]+>/g, "").trim().slice(0, 120)}{item.content.replace(/<[^>]+>/g, "").trim().length > 120 ? "…" : ""}
-              </p>
+            {!isEditing && (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {item.subject && <Badge variant="secondary" className="text-xs">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
+                  {item.timerMinutes && <Badge variant="secondary" className="text-xs gap-1"><Clock className="h-3 w-3" />{item.timerMinutes} mnt</Badge>}
+                  {item.fileName && <Badge variant="outline" className="text-xs gap-1"><FileText className="h-3 w-3" />PDF</Badge>}
+                  {item.imageDataUrl && <Badge variant="outline" className="text-xs gap-1"><ImageIcon className="h-3 w-3" />Gambar</Badge>}
+                  {(item.videoUrl || item.videoDataUrl) && <Badge variant="outline" className="text-xs gap-1"><Video className="h-3 w-3" />Video</Badge>}
+                  {item.content && item.content.replace(/<[^>]+>/g, "").trim() && (
+                    <Badge variant="outline" className="text-xs gap-1"><BookOpen className="h-3 w-3" />Teks</Badge>
+                  )}
+                </div>
+                {item.content && item.content.replace(/<[^>]+>/g, "").trim() && (
+                  <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 line-clamp-2">
+                    {item.content.replace(/<[^>]+>/g, "").trim().slice(0, 120)}{item.content.replace(/<[^>]+>/g, "").trim().length > 120 ? "…" : ""}
+                  </p>
+                )}
+              </>
+            )}
+            {isEditing && (
+              <div className="space-y-2 pt-1">
+                <p className="text-xs font-medium text-primary">Edit tag mapel & bab</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Mata Pelajaran</Label>
+                    <Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="Matematika" className="h-7 text-xs mt-0.5" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Bab / Topik</Label>
+                    <Input value={editBab} onChange={(e) => setEditBab(e.target.value)} placeholder="Bab 1 – Bilangan" className="h-7 text-xs mt-0.5" />
+                  </div>
+                </div>
+                <div className="flex gap-1.5 pt-0.5">
+                  <Button size="sm" className="h-6 text-xs px-2.5 gap-1" onClick={() => saveEdit(item.id)}><BookMarked className="h-3 w-3" />Simpan</Button>
+                  <Button size="sm" variant="outline" className="h-6 text-xs px-2.5" onClick={cancelEdit}>Batal</Button>
+                </div>
+              </div>
             )}
           </div>
-          <div className="flex flex-col gap-1 shrink-0">
-            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
-              <Plus className="h-3.5 w-3.5" />Gunakan
-            </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive self-end" onClick={() => deleteFromBank(item.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          {!isEditing && (
+            <div className="flex flex-col gap-1 shrink-0">
+              <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
+                <Plus className="h-3.5 w-3.5" />Gunakan
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Edit tag" onClick={() => startEdit(item)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteFromBank(item.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -377,6 +416,9 @@ function ExamBankDialog({
   const [filterSubject, setFilterSubject] = useState("all");
   const [filterBab, setFilterBab] = useState("all");
   const [viewMode, setViewMode] = useState<"group" | "list">("group");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBab, setEditBab] = useState("");
 
   const subjects = useMemo(() => [...new Set(myBank.map((b) => b.subject).filter(Boolean) as string[])].sort(), [myBank]);
   const babs = useMemo(() => {
@@ -411,6 +453,12 @@ function ExamBankDialog({
   }, [filtered]);
 
   function deleteFromBank(id: string) { write("examBank", bank.filter((b) => b.id !== id)); }
+  function startEdit(item: ExamBankItem) { setEditingId(item.id); setEditSubject(item.subject ?? ""); setEditBab(item.bab ?? ""); }
+  function cancelEdit() { setEditingId(null); }
+  function saveEdit(id: string) {
+    write("examBank", bank.map((b) => b.id === id ? { ...b, subject: editSubject.trim() || undefined, bab: editBab.trim() || undefined } : b));
+    setEditingId(null);
+  }
 
   function qtypeSummary(qs: import("@/lib/types").Question[]) {
     const counts: Record<string, number> = {};
@@ -420,35 +468,65 @@ function ExamBankDialog({
 
   function ExamItem({ item }: { item: ExamBankItem }) {
     const totalPoin = item.questions.reduce((s, q) => s + q.points, 0);
+    const isEditing = editingId === item.id;
     return (
-      <div className="border rounded-lg p-3.5 bg-card hover:bg-accent/30 transition-colors">
+      <div className={`border rounded-lg p-3.5 bg-card transition-colors ${isEditing ? "border-primary ring-1 ring-primary/20" : "hover:bg-accent/30"}`}>
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0 space-y-2">
             <div>
               <p className="text-sm font-semibold leading-snug">{item.title}</p>
               {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Badge variant="outline" className="text-xs gap-1"><ClipboardList className="h-3 w-3" />{item.questions.length} soal</Badge>
-              <Badge variant="outline" className="text-xs gap-1"><Clock className="h-3 w-3" />{item.durationMinutes} mnt</Badge>
-              {item.passingScore && <Badge variant="secondary" className="text-xs">KKM {item.passingScore}</Badge>}
-              {item.shuffleQuestions && <Badge variant="outline" className="text-xs gap-1"><Shuffle className="h-3 w-3" />Acak</Badge>}
-            </div>
-            {item.questions.length > 0 && (
-              <div className="bg-muted/50 rounded px-2 py-1.5 space-y-1">
-                <p className="text-xs text-muted-foreground font-medium">Tipe soal: <span className="text-foreground">{qtypeSummary(item.questions)}</span></p>
-                <p className="text-xs text-muted-foreground">Total poin: <span className="text-foreground font-medium">{totalPoin}</span></p>
+            {!isEditing && (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {item.subject && <Badge variant="secondary" className="text-xs">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
+                  <Badge variant="outline" className="text-xs gap-1"><ClipboardList className="h-3 w-3" />{item.questions.length} soal</Badge>
+                  <Badge variant="outline" className="text-xs gap-1"><Clock className="h-3 w-3" />{item.durationMinutes} mnt</Badge>
+                  {item.passingScore && <Badge variant="secondary" className="text-xs">KKM {item.passingScore}</Badge>}
+                  {item.shuffleQuestions && <Badge variant="outline" className="text-xs gap-1"><Shuffle className="h-3 w-3" />Acak</Badge>}
+                </div>
+                {item.questions.length > 0 && (
+                  <div className="bg-muted/50 rounded px-2 py-1.5 space-y-1">
+                    <p className="text-xs text-muted-foreground font-medium">Tipe soal: <span className="text-foreground">{qtypeSummary(item.questions)}</span></p>
+                    <p className="text-xs text-muted-foreground">Total poin: <span className="text-foreground font-medium">{totalPoin}</span></p>
+                  </div>
+                )}
+              </>
+            )}
+            {isEditing && (
+              <div className="space-y-2 pt-1">
+                <p className="text-xs font-medium text-primary">Edit tag mapel & bab</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Mata Pelajaran</Label>
+                    <Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="Matematika" className="h-7 text-xs mt-0.5" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Bab / Topik</Label>
+                    <Input value={editBab} onChange={(e) => setEditBab(e.target.value)} placeholder="Bab 1 – Bilangan" className="h-7 text-xs mt-0.5" />
+                  </div>
+                </div>
+                <div className="flex gap-1.5 pt-0.5">
+                  <Button size="sm" className="h-6 text-xs px-2.5 gap-1" onClick={() => saveEdit(item.id)}><BookMarked className="h-3 w-3" />Simpan</Button>
+                  <Button size="sm" variant="outline" className="h-6 text-xs px-2.5" onClick={cancelEdit}>Batal</Button>
+                </div>
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-1 shrink-0">
-            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
-              <Plus className="h-3.5 w-3.5" />Gunakan
-            </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive self-end" onClick={() => deleteFromBank(item.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          {!isEditing && (
+            <div className="flex flex-col gap-1 shrink-0">
+              <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
+                <Plus className="h-3.5 w-3.5" />Gunakan
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Edit tag" onClick={() => startEdit(item)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteFromBank(item.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
