@@ -201,7 +201,7 @@ export default function TeacherTugas() {
     <div className="space-y-4">
       <div className="space-y-1">
         <p className="text-sm text-muted-foreground">
-          Pantau dan kelola jadwal ujian & materi yang sudah diberikan ke siswa. Untuk membuat konten baru, buka menu <span className="font-medium text-foreground">Materi &amp; Soal</span>.
+          Pantau dan kelola jadwal ujian & materi yang sudah diberikan ke siswa. Untuk membuat konten baru, buka menu <span className="font-medium text-foreground">Materi</span>.
         </p>
       </div>
 

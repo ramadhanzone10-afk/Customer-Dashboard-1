@@ -128,6 +128,21 @@ export interface MaterialBankItem {
   createdAt: number;
 }
 
+export interface ExamBankItem {
+  id: string;
+  title: string;
+  description: string;
+  questions: Question[];
+  durationMinutes: number;
+  passingScore?: number;
+  shuffleQuestions?: boolean;
+  shuffleOptions?: boolean;
+  subject?: string;
+  bab?: string;
+  createdBy: string;
+  createdAt: number;
+}
+
 export type PaymentStatus = "unpaid" | "pending" | "paid";
 
 export interface Payment {

@@ -29,7 +29,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
-import type { Material, Exam, Question, User, AppNotification, ExamSubmission, QuestionBankItem, MaterialBankItem } from "@/lib/types";
+import type { Material, Exam, Question, User, AppNotification, ExamSubmission, QuestionBankItem, MaterialBankItem, ExamBankItem } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { mcApi } from "@/lib/api-client";
 
@@ -197,6 +197,84 @@ function MaterialBankDialog({
                         <Badge variant="outline" className="text-xs h-5">{(item.materialType ?? "materi") === "materi" ? "Materi" : "Soal"}</Badge>
                         {item.subject && <Badge variant="secondary" className="text-xs h-5">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
                         {item.timerMinutes && <Badge variant="secondary" className="text-xs h-5 gap-1"><Clock className="h-3 w-3" />{item.timerMinutes} mnt</Badge>}
+                      </div>
+                      <p className="text-sm font-medium">{item.title}</p>
+                      {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
+                        <Plus className="h-3.5 w-3.5" />Gunakan
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteFromBank(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Exam Bank Dialog ──────────────────────────────────────────────────────────
+function ExamBankDialog({
+  open, onOpenChange, teacherId, onUse,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  teacherId: string; onUse: (item: ExamBankItem) => void;
+}) {
+  const bank = useStore<ExamBankItem[]>("examBank", []);
+  const myBank = useMemo(() => bank.filter((b) => b.createdBy === teacherId).sort((a, b) => b.createdAt - a.createdAt), [bank, teacherId]);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => myBank.filter((b) => {
+    if (search) {
+      const q = search.toLowerCase();
+      if (!b.title.toLowerCase().includes(q) && !b.subject?.toLowerCase().includes(q) && !b.bab?.toLowerCase().includes(q) && !b.description?.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }), [myBank, search]);
+
+  function deleteFromBank(id: string) { write("examBank", bank.filter((b) => b.id !== id)); }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Library className="h-5 w-5 text-primary" />Bank Ujian</DialogTitle>
+          <p className="text-sm text-muted-foreground">{myBank.length} ujian tersimpan · Klik "Gunakan" untuk membuat salinan baru.</p>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Cari ujian..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
+          </div>
+
+          {myBank.length === 0 ? (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              <Library className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              Belum ada ujian di bank. Klik "Simpan ke Bank" di kartu ujian untuk menyimpannya.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">Tidak ada yang cocok.</div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((item) => (
+                <div key={item.id} className="border rounded-lg p-3 hover:bg-accent/50 transition-colors">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        {item.subject && <Badge variant="secondary" className="text-xs h-5">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
+                        <Badge variant="outline" className="text-xs h-5 gap-1"><ClipboardList className="h-3 w-3" />{item.questions.length} soal</Badge>
+                        <Badge variant="outline" className="text-xs h-5 gap-1"><Clock className="h-3 w-3" />{item.durationMinutes} mnt</Badge>
+                        {item.passingScore && <Badge variant="outline" className="text-xs h-5">KKM {item.passingScore}</Badge>}
                       </div>
                       <p className="text-sm font-medium">{item.title}</p>
                       {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>}
@@ -896,6 +974,8 @@ export default function TeacherMaterials() {
   const [matScheduleTarget, setMatScheduleTarget] = useState<Material | null>(null);
   const [matBankOpen, setMatBankOpen] = useState(false);
   const matBank = useStore<MaterialBankItem[]>("materialBank", []);
+  const [examBankOpen, setExamBankOpen] = useState(false);
+  const examBank = useStore<ExamBankItem[]>("examBank", []);
 
   // Exam state
   const [examOpen, setExamOpen] = useState(false);
@@ -909,6 +989,22 @@ export default function TeacherMaterials() {
 
   function startCreate(type: "materi" | "soal") { setEditingMaterial(null); setNewMaterialType(type); setMatOpen(true); }
   function startEdit(m: Material) { setEditingMaterial(m); setNewMaterialType(m.materialType ?? "materi"); setMatOpen(true); }
+  function startFromExamBank(item: ExamBankItem) {
+    const draft: Exam = {
+      id: uid("e_"), title: item.title, description: item.description,
+      questions: item.questions.map((q) => ({ ...q, id: uid("q_") })),
+      durationMinutes: item.durationMinutes,
+      deadline: fromDatetimeLocal(defaultDeadline()),
+      assignedTo: [], status: "draft",
+      createdBy: user!.id, createdAt: Date.now(),
+      type: "exam",
+      shuffleQuestions: item.shuffleQuestions,
+      shuffleOptions: item.shuffleOptions,
+      passingScore: item.passingScore,
+    };
+    setEditingExam(draft);
+    setExamOpen(true);
+  }
   function startFromBank(item: MaterialBankItem) {
     const draft: Material = {
       id: uid("m_"), title: item.title, description: item.description ?? "", content: item.content ?? "",
@@ -1036,6 +1132,20 @@ export default function TeacherMaterials() {
               </>
             )}
             <Button variant="outline" size="sm" onClick={() => { setEditingExam(e); setExamOpen(true); }}><Pencil className="h-3 w-3 mr-1" />Edit</Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              const bankAll = read("examBank", []);
+              const already = bankAll.some((b: ExamBankItem) => b.createdBy === user!.id && b.title === e.title);
+              if (already) { alert("Ujian dengan judul ini sudah ada di bank ujian."); return; }
+              const item: ExamBankItem = {
+                id: uid("eb_"), title: e.title, description: e.description,
+                questions: e.questions, durationMinutes: e.durationMinutes,
+                passingScore: e.passingScore, shuffleQuestions: e.shuffleQuestions,
+                shuffleOptions: e.shuffleOptions,
+                createdBy: user!.id, createdAt: Date.now(),
+              };
+              write("examBank", [...bankAll, item]);
+              alert("Ujian berhasil disimpan ke bank ujian!");
+            }} className="gap-1"><BookmarkPlus className="h-3 w-3" />Simpan ke Bank</Button>
             <Button variant="outline" size="sm" onClick={() => deleteExam(e.id)}><Trash2 className="h-3 w-3 mr-1 text-destructive" />Hapus</Button>
           </div>
         </CardContent>
@@ -1144,12 +1254,11 @@ export default function TeacherMaterials() {
         </div>
       )}
 
-      {/* Tabs: Materi | Soal | Ujian */}
+      {/* Tabs: Materi | Ujian */}
       <Tabs defaultValue="materi">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-2">
           <TabsList>
             <TabsTrigger value="materi" className="gap-1.5"><BookOpen className="h-3.5 w-3.5" />Materi ({materiList.length})</TabsTrigger>
-            <TabsTrigger value="soal" className="gap-1.5"><PenLine className="h-3.5 w-3.5" />Soal ({soalList.length})</TabsTrigger>
             <TabsTrigger value="ujian" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" />Ujian ({myExams.length})</TabsTrigger>
           </TabsList>
           <div className="flex gap-2 flex-wrap">
@@ -1159,6 +1268,12 @@ export default function TeacherMaterials() {
                 <Badge variant="secondary" className="h-4 text-xs px-1 ml-0.5">{matBank.filter((b) => b.createdBy === user!.id).length}</Badge>
               )}
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setExamBankOpen(true)} className="gap-1">
+              <Library className="h-4 w-4" />Bank Ujian
+              {examBank.filter((b) => b.createdBy === user!.id).length > 0 && (
+                <Badge variant="secondary" className="h-4 text-xs px-1 ml-0.5">{examBank.filter((b) => b.createdBy === user!.id).length}</Badge>
+              )}
+            </Button>
             <Button onClick={() => startCreate("materi")} size="sm" data-testid="button-new-material"><Plus className="h-4 w-4 mr-1" />Materi Baru</Button>
             <Button onClick={() => { setEditingExam(null); setExamOpen(true); }} size="sm" variant="outline" data-testid="button-new-exam"><Plus className="h-4 w-4 mr-1" />Ujian Baru</Button>
           </div>
@@ -1166,10 +1281,6 @@ export default function TeacherMaterials() {
 
         <TabsContent value="materi">
           <GroupedList list={materiList} emptyType="materi" onCreateClick={() => startCreate("materi")} />
-        </TabsContent>
-
-        <TabsContent value="soal">
-          <GroupedList list={soalList} emptyType="soal/latihan" onCreateClick={() => startCreate("soal")} />
         </TabsContent>
 
         <TabsContent value="ujian">
@@ -1192,6 +1303,7 @@ export default function TeacherMaterials() {
       <MaterialDialog open={matOpen} onOpenChange={setMatOpen} editing={editingMaterial} materialType={newMaterialType} teacherId={user!.id} onCreated={(m) => setMatScheduleTarget(m)} />
       <ExamDialog open={examOpen} onOpenChange={setExamOpen} teacherId={user!.id} editing={editingExam} onCreated={(e) => setExamScheduleTarget(e)} />
       <MaterialBankDialog open={matBankOpen} onOpenChange={setMatBankOpen} teacherId={user!.id} onUse={startFromBank} />
+      <ExamBankDialog open={examBankOpen} onOpenChange={setExamBankOpen} teacherId={user!.id} onUse={startFromExamBank} />
 
       {matScheduleTarget && (
         <ScheduleDialog open={!!matScheduleTarget} onOpenChange={(o) => { if (!o) setMatScheduleTarget(null); }}
