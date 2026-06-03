@@ -218,7 +218,13 @@ export function ExamDialog({
           </div>
           <div>
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <Label className="text-base font-semibold">Soal ({questions.length})</Label>
+              <div className="flex items-center gap-3">
+                <Label className="text-base font-semibold">Soal ({questions.length})</Label>
+                <div className="flex items-center gap-1.5 bg-primary/10 text-primary rounded-full px-3 py-0.5 text-sm font-semibold">
+                  <span>Total:</span>
+                  <span>{questions.reduce((s, q) => s + (q.points ?? 0), 0)} poin</span>
+                </div>
+              </div>
               <Button size="sm" onClick={() => addQuestion("mc")} data-testid="button-add-question">
                 <Plus className="h-4 w-4 mr-1" />Tambah Soal
               </Button>
