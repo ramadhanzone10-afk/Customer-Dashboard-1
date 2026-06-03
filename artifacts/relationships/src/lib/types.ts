@@ -99,6 +99,16 @@ export interface ExamSubmission {
   cbtViolations?: number;
 }
 
+export interface QuestionBankItem {
+  id: string;
+  question: Question;
+  subject?: string;
+  bab?: string;
+  sourceExamTitle?: string;
+  createdBy: string;
+  createdAt: number;
+}
+
 export type PaymentStatus = "unpaid" | "pending" | "paid";
 
 export interface Payment {

@@ -5,7 +5,7 @@ import {
   BookMarked, CalendarCheck, Send, PenLine, ClipboardList,
   Bold, Italic, Underline, List, ListOrdered, RemoveFormatting,
   CheckSquare, ToggleLeft, AlignLeft, Shuffle, X,
-  BarChart3,
+  BarChart3, BookmarkPlus, Library,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +29,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
-import type { Material, Exam, Question, User, AppNotification, ExamSubmission } from "@/lib/types";
+import type { Material, Exam, Question, User, AppNotification, ExamSubmission, QuestionBankItem } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { mcApi } from "@/lib/api-client";
 
@@ -88,6 +88,120 @@ function defaultDeadline(days = 7) {
   const d = new Date(); d.setDate(d.getDate() + days); d.setHours(23, 59, 0, 0); return toDatetimeLocal(d.getTime());
 }
 
+// ── Question Bank Dialog ──────────────────────────────────────────────────────
+function QuestionBankDialog({
+  open, onOpenChange, teacherId, onAddQuestions,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  teacherId: string; onAddQuestions: (qs: Question[]) => void;
+}) {
+  const bank = useStore<QuestionBankItem[]>("questionBank", []);
+  const myBank = useMemo(() => bank.filter((b) => b.createdBy === teacherId).sort((a, b) => b.createdAt - a.createdAt), [bank, teacherId]);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useMemo(() => { if (open) setSelected(new Set()); }, [open]);
+
+  const filtered = useMemo(() => myBank.filter((b) => {
+    if (filterType !== "all" && b.question.type !== filterType) return false;
+    if (search) {
+      const text = b.question.question.replace(/<[^>]+>/g, "").toLowerCase();
+      if (!text.includes(search.toLowerCase()) && !b.subject?.toLowerCase().includes(search.toLowerCase()) && !b.bab?.toLowerCase().includes(search.toLowerCase())) return false;
+    }
+    return true;
+  }), [myBank, search, filterType]);
+
+  function toggleItem(id: string) {
+    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  function addSelected() {
+    const qs = [...selected].map((id) => {
+      const item = myBank.find((b) => b.id === id)!;
+      return { ...item.question, id: uid("q_") };
+    });
+    onAddQuestions(qs); onOpenChange(false);
+  }
+
+  function deleteFromBank(id: string) {
+    write("questionBank", bank.filter((b) => b.id !== id));
+  }
+
+  function previewText(html: string, max = 80) {
+    const text = html.replace(/<[^>]+>/g, "").trim();
+    return text.length > max ? text.slice(0, max) + "…" : text || "(soal bergambar)";
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Library className="h-5 w-5 text-primary" />Bank Soal</DialogTitle>
+          <p className="text-sm text-muted-foreground">{myBank.length} soal tersimpan · Pilih untuk ditambahkan ke ujian.</p>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Cari soal, mapel, bab..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
+            </div>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">Semua Tipe</SelectItem>
+                {(["mc", "mc-complex", "tf", "fill", "essay"] as const).map((t) => (
+                  <SelectItem key={t} value={t} className="text-xs">{QTYPE_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {myBank.length === 0 ? (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              <Library className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              Belum ada soal di bank. Klik ikon 💾 pada soal di dialog Ujian untuk menyimpannya.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">Tidak ada soal yang cocok.</div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((item) => (
+                <div key={item.id} className={`border rounded-lg p-3 cursor-pointer transition-colors ${selected.has(item.id) ? "border-primary bg-primary/5" : "hover:bg-accent/50"}`} onClick={() => toggleItem(item.id)}>
+                  <div className="flex items-start gap-2">
+                    <Checkbox checked={selected.has(item.id)} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5 shrink-0" onClick={(e) => e.stopPropagation()} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        <Badge variant="outline" className="text-xs gap-1 h-5">{QTYPE_ICONS[item.question.type]}{QTYPE_LABELS[item.question.type]}</Badge>
+                        <Badge variant="secondary" className="text-xs h-5">{item.question.points} poin</Badge>
+                        {item.subject && <Badge variant="outline" className="text-xs h-5">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
+                        {item.sourceExamTitle && <span className="text-xs text-muted-foreground">dari: {item.sourceExamTitle}</span>}
+                      </div>
+                      <p className="text-sm line-clamp-2">{previewText(item.question.question)}</p>
+                      {item.question.options && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.question.options.length} pilihan</p>
+                      )}
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteFromBank(item.id); }}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+          <Button onClick={addSelected} disabled={selected.size === 0} className="gap-1">
+            <Plus className="h-4 w-4" />Tambah {selected.size > 0 ? `${selected.size} ` : ""}Soal ke Ujian
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Exam Dialog ───────────────────────────────────────────────────────────────
 export function ExamDialog({
   open, onOpenChange, teacherId, editing, onCreated,
@@ -106,6 +220,8 @@ export function ExamDialog({
   const [questions, setQuestions] = useState<Question[]>([
     { id: uid("q_"), type: "mc", question: "", options: ["", "", "", ""], correctAnswer: 0, points: 10 },
   ]);
+  const [bankOpen, setBankOpen] = useState(false);
+  const bank = useStore<QuestionBankItem[]>("questionBank", []);
 
   useMemo(() => {
     if (open) {
@@ -141,6 +257,22 @@ export function ExamDialog({
   function onQPdf(id: string, e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader(); r.onload = () => updateQ(id, { pdfDataUrl: r.result as string, pdfFileName: f.name }); r.readAsDataURL(f);
+  }
+
+  function saveToBank(q: Question) {
+    const already = bank.some((b) => b.createdBy === teacherId && b.question.question === q.question.trim() && b.question.type === q.type);
+    if (already) { alert("Soal ini sudah ada di bank soal."); return; }
+    const item: QuestionBankItem = {
+      id: uid("bk_"), question: q,
+      sourceExamTitle: title.trim() || undefined,
+      createdBy: teacherId, createdAt: Date.now(),
+    };
+    write("questionBank", [...bank, item]);
+    alert("Soal berhasil disimpan ke bank soal!");
+  }
+
+  function addFromBank(qs: Question[]) {
+    setQuestions((prev) => [...prev, ...qs]);
   }
 
   function save() {
@@ -225,9 +357,17 @@ export function ExamDialog({
                   <span>{questions.reduce((s, q) => s + (q.points ?? 0), 0)} poin</span>
                 </div>
               </div>
-              <Button size="sm" onClick={() => addQuestion("mc")} data-testid="button-add-question">
-                <Plus className="h-4 w-4 mr-1" />Tambah Soal
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setBankOpen(true)} className="gap-1">
+                  <Library className="h-4 w-4" />Bank Soal
+                  {bank.filter((b) => b.createdBy === teacherId).length > 0 && (
+                    <Badge variant="secondary" className="h-4 text-xs px-1 ml-0.5">{bank.filter((b) => b.createdBy === teacherId).length}</Badge>
+                  )}
+                </Button>
+                <Button size="sm" onClick={() => addQuestion("mc")} data-testid="button-add-question">
+                  <Plus className="h-4 w-4 mr-1" />Tambah Soal
+                </Button>
+              </div>
             </div>
             <div className="space-y-4">
               {questions.map((q, idx) => (
@@ -264,6 +404,9 @@ export function ExamDialog({
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Simpan ke Bank Soal" onClick={() => saveToBank(q)}>
+                          <BookmarkPlus className="h-3.5 w-3.5" />
+                        </Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveQ(idx, -1)} disabled={idx === 0}>↑</Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveQ(idx, 1)} disabled={idx === questions.length - 1}>↓</Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeQ(q.id)}><X className="h-4 w-4" /></Button>
@@ -350,6 +493,12 @@ export function ExamDialog({
           <Button onClick={save} data-testid="button-save-exam">{editing ? "Simpan Perubahan" : "Simpan Draft"}</Button>
         </DialogFooter>
       </DialogContent>
+      <QuestionBankDialog
+        open={bankOpen}
+        onOpenChange={setBankOpen}
+        teacherId={teacherId}
+        onAddQuestions={addFromBank}
+      />
     </Dialog>
   );
 }
