@@ -144,79 +144,220 @@ function MaterialBankDialog({
   const bank = useStore<MaterialBankItem[]>("materialBank", []);
   const myBank = useMemo(() => bank.filter((b) => b.createdBy === teacherId).sort((a, b) => b.createdAt - a.createdAt), [bank, teacherId]);
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "materi" | "soal">("all");
+  const [filterSubject, setFilterSubject] = useState("all");
+  const [filterBab, setFilterBab] = useState("all");
+  const [viewMode, setViewMode] = useState<"group" | "list">("group");
+
+  const subjects = useMemo(() => [...new Set(myBank.map((b) => b.subject).filter(Boolean) as string[])].sort(), [myBank]);
+  const babs = useMemo(() => {
+    const relevant = filterSubject === "all" ? myBank : myBank.filter((b) => b.subject === filterSubject);
+    return [...new Set(relevant.map((b) => b.bab).filter(Boolean) as string[])].sort();
+  }, [myBank, filterSubject]);
 
   const filtered = useMemo(() => myBank.filter((b) => {
-    if (filterType !== "all" && (b.materialType ?? "materi") !== filterType) return false;
+    if (filterSubject !== "all" && b.subject !== filterSubject) return false;
+    if (filterBab !== "all" && b.bab !== filterBab) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!b.title.toLowerCase().includes(q) && !b.subject?.toLowerCase().includes(q) && !b.bab?.toLowerCase().includes(q) && !b.description?.toLowerCase().includes(q)) return false;
     }
     return true;
-  }), [myBank, search, filterType]);
+  }), [myBank, search, filterSubject, filterBab]);
+
+  const grouped = useMemo(() => {
+    const subjectMap = new Map<string, Map<string, MaterialBankItem[]>>();
+    for (const item of filtered) {
+      const sub = item.subject || "(Tanpa Mata Pelajaran)";
+      const bab = item.bab || "(Tanpa Bab)";
+      if (!subjectMap.has(sub)) subjectMap.set(sub, new Map());
+      const babMap = subjectMap.get(sub)!;
+      if (!babMap.has(bab)) babMap.set(bab, []);
+      babMap.get(bab)!.push(item);
+    }
+    return Array.from(subjectMap.entries()).map(([subject, babMap]) => ({
+      subject,
+      babs: Array.from(babMap.entries()).map(([bab, items]) => ({ bab, items })),
+    }));
+  }, [filtered]);
 
   function deleteFromBank(id: string) { write("materialBank", bank.filter((b) => b.id !== id)); }
 
+  function MatItem({ item }: { item: MaterialBankItem }) {
+    return (
+      <div className="border rounded-lg p-3.5 bg-card hover:bg-accent/30 transition-colors">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0 space-y-2">
+            <div>
+              <p className="text-sm font-semibold leading-snug">{item.title}</p>
+              {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {item.timerMinutes && <Badge variant="secondary" className="text-xs gap-1"><Clock className="h-3 w-3" />{item.timerMinutes} mnt</Badge>}
+              {item.fileName && <Badge variant="outline" className="text-xs gap-1"><FileText className="h-3 w-3" />PDF</Badge>}
+              {item.imageDataUrl && <Badge variant="outline" className="text-xs gap-1"><ImageIcon className="h-3 w-3" />Gambar</Badge>}
+              {(item.videoUrl || item.videoDataUrl) && <Badge variant="outline" className="text-xs gap-1"><Video className="h-3 w-3" />Video</Badge>}
+              {item.content && item.content.replace(/<[^>]+>/g, "").trim() && (
+                <Badge variant="outline" className="text-xs gap-1"><BookOpen className="h-3 w-3" />Teks</Badge>
+              )}
+            </div>
+            {item.content && item.content.replace(/<[^>]+>/g, "").trim() && (
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 line-clamp-2 font-mono-like">
+                {item.content.replace(/<[^>]+>/g, "").trim().slice(0, 120)}{item.content.replace(/<[^>]+>/g, "").trim().length > 120 ? "…" : ""}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col gap-1 shrink-0">
+            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
+              <Plus className="h-3.5 w-3.5" />Gunakan
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive self-end" onClick={() => deleteFromBank(item.id)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2"><Library className="h-5 w-5 text-primary" />Bank Materi</DialogTitle>
           <p className="text-sm text-muted-foreground">{myBank.length} materi tersimpan · Klik "Gunakan" untuk membuat salinan baru.</p>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cari judul, mapel, bab..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
-            </div>
-            <Select value={filterType} onValueChange={(v) => setFilterType(v as "all" | "materi" | "soal")}>
-              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+
+        <div className="shrink-0 space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Cari judul, mapel, bab, deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Select value={filterSubject} onValueChange={(v) => { setFilterSubject(v); setFilterBab("all"); }}>
+              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Semua Mapel" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">Semua</SelectItem>
-                <SelectItem value="materi" className="text-xs">Materi</SelectItem>
-                <SelectItem value="soal" className="text-xs">Soal</SelectItem>
+                <SelectItem value="all" className="text-xs">Semua Mapel</SelectItem>
+                {subjects.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
               </SelectContent>
             </Select>
+            {babs.length > 0 && (
+              <Select value={filterBab} onValueChange={setFilterBab}>
+                <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Semua Bab" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">Semua Bab</SelectItem>
+                  {babs.map((b) => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="ml-auto flex gap-1">
+              <Button size="sm" variant={viewMode === "group" ? "default" : "outline"} className="h-8 text-xs px-2.5" onClick={() => setViewMode("group")}><BookMarked className="h-3.5 w-3.5 mr-1" />Per Bab</Button>
+              <Button size="sm" variant={viewMode === "list" ? "default" : "outline"} className="h-8 text-xs px-2.5" onClick={() => setViewMode("list")}><Filter className="h-3.5 w-3.5 mr-1" />Daftar</Button>
+            </div>
           </div>
+        </div>
 
+        <div className="flex-1 overflow-y-auto min-h-0">
           {myBank.length === 0 ? (
-            <div className="text-center py-10 text-sm text-muted-foreground">
-              <Library className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              Belum ada materi di bank. Klik "Simpan ke Bank" di dialog edit materi untuk menyimpannya.
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              <Library className="h-10 w-10 mx-auto mb-3 opacity-20" />
+              <p className="font-medium">Bank materi kosong</p>
+              <p className="text-xs mt-1">Klik "Simpan ke Bank" di dialog edit materi untuk menyimpannya.</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">Tidak ada yang cocok.</div>
+            <div className="text-center py-10 text-sm text-muted-foreground">Tidak ada materi yang cocok dengan filter.</div>
+          ) : viewMode === "list" ? (
+            <div className="space-y-2 py-1">
+              {filtered.map((item) => <MatItem key={item.id} item={item} />)}
+            </div>
           ) : (
-            <div className="space-y-2">
-              {filtered.map((item) => (
-                <div key={item.id} className="border rounded-lg p-3 hover:bg-accent/50 transition-colors">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <Badge variant="outline" className="text-xs h-5">{(item.materialType ?? "materi") === "materi" ? "Materi" : "Soal"}</Badge>
-                        {item.subject && <Badge variant="secondary" className="text-xs h-5">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
-                        {item.timerMinutes && <Badge variant="secondary" className="text-xs h-5 gap-1"><Clock className="h-3 w-3" />{item.timerMinutes} mnt</Badge>}
+            <div className="space-y-5 py-1">
+              {grouped.map(({ subject, babs: babGroups }) => (
+                <div key={subject}>
+                  <div className="flex items-center gap-2 mb-2 sticky top-0 bg-background/80 backdrop-blur-sm py-1 z-10">
+                    <BookMarked className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-semibold text-sm">{subject}</span>
+                    <div className="flex-1 border-t" />
+                    <span className="text-xs text-muted-foreground shrink-0">{babGroups.reduce((s, g) => s + g.items.length, 0)} materi</span>
+                  </div>
+                  <div className="space-y-4 pl-1">
+                    {babGroups.map(({ bab, items }) => (
+                      <div key={bab}>
+                        {bab !== "(Tanpa Bab)" && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <GraduationCap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{bab}</span>
+                            <span className="text-xs text-muted-foreground">({items.length})</span>
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {items.map((item) => <MatItem key={item.id} item={item} />)}
+                        </div>
                       </div>
-                      <p className="text-sm font-medium">{item.title}</p>
-                      {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
-                        <Plus className="h-3.5 w-3.5" />Gunakan
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteFromBank(item.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Save Exam to Bank Dialog ──────────────────────────────────────────────────
+function SaveExamToBankDialog({
+  open, onOpenChange, exam, teacherId,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  exam: Exam | null; teacherId: string;
+}) {
+  const bank = useStore<ExamBankItem[]>("examBank", []);
+  const [subject, setSubject] = useState("");
+  const [bab, setBab] = useState("");
+  useMemo(() => { if (open) { setSubject(""); setBab(""); } }, [open]);
+
+  function save() {
+    if (!exam) return;
+    const already = bank.some((b) => b.createdBy === teacherId && b.title === exam.title);
+    if (already) { alert("Ujian dengan judul ini sudah ada di bank ujian."); return; }
+    const item: ExamBankItem = {
+      id: uid("eb_"), title: exam.title, description: exam.description,
+      questions: exam.questions, durationMinutes: exam.durationMinutes,
+      passingScore: exam.passingScore, shuffleQuestions: exam.shuffleQuestions,
+      shuffleOptions: exam.shuffleOptions,
+      subject: subject.trim() || undefined, bab: bab.trim() || undefined,
+      createdBy: teacherId, createdAt: Date.now(),
+    };
+    write("examBank", [...bank, item]);
+    onOpenChange(false);
+    alert("Ujian berhasil disimpan ke bank ujian!");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><BookmarkPlus className="h-4 w-4 text-primary" />Simpan ke Bank Ujian</DialogTitle>
+          <p className="text-sm text-muted-foreground">Tambahkan tag agar mudah ditemukan kembali.</p>
+        </DialogHeader>
+        {exam && (
+          <div className="bg-muted/40 rounded-md px-3 py-2 text-sm">
+            <p className="font-medium truncate">{exam.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{exam.questions.length} soal · {exam.durationMinutes} menit</p>
+          </div>
+        )}
+        <div className="space-y-3">
+          <div><Label className="text-sm">Mata Pelajaran <span className="text-muted-foreground font-normal">(opsional)</span></Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Matematika" className="mt-1" /></div>
+          <div><Label className="text-sm">Bab / Topik <span className="text-muted-foreground font-normal">(opsional)</span></Label><Input value={bab} onChange={(e) => setBab(e.target.value)} placeholder="Bab 3 – Aljabar" className="mt-1" /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={save} className="gap-1"><BookmarkPlus className="h-4 w-4" />Simpan</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -233,67 +374,169 @@ function ExamBankDialog({
   const bank = useStore<ExamBankItem[]>("examBank", []);
   const myBank = useMemo(() => bank.filter((b) => b.createdBy === teacherId).sort((a, b) => b.createdAt - a.createdAt), [bank, teacherId]);
   const [search, setSearch] = useState("");
+  const [filterSubject, setFilterSubject] = useState("all");
+  const [filterBab, setFilterBab] = useState("all");
+  const [viewMode, setViewMode] = useState<"group" | "list">("group");
+
+  const subjects = useMemo(() => [...new Set(myBank.map((b) => b.subject).filter(Boolean) as string[])].sort(), [myBank]);
+  const babs = useMemo(() => {
+    const relevant = filterSubject === "all" ? myBank : myBank.filter((b) => b.subject === filterSubject);
+    return [...new Set(relevant.map((b) => b.bab).filter(Boolean) as string[])].sort();
+  }, [myBank, filterSubject]);
 
   const filtered = useMemo(() => myBank.filter((b) => {
+    if (filterSubject !== "all" && b.subject !== filterSubject) return false;
+    if (filterBab !== "all" && b.bab !== filterBab) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!b.title.toLowerCase().includes(q) && !b.subject?.toLowerCase().includes(q) && !b.bab?.toLowerCase().includes(q) && !b.description?.toLowerCase().includes(q)) return false;
     }
     return true;
-  }), [myBank, search]);
+  }), [myBank, search, filterSubject, filterBab]);
+
+  const grouped = useMemo(() => {
+    const subjectMap = new Map<string, Map<string, ExamBankItem[]>>();
+    for (const item of filtered) {
+      const sub = item.subject || "(Tanpa Mata Pelajaran)";
+      const bab = item.bab || "(Tanpa Bab)";
+      if (!subjectMap.has(sub)) subjectMap.set(sub, new Map());
+      const babMap = subjectMap.get(sub)!;
+      if (!babMap.has(bab)) babMap.set(bab, []);
+      babMap.get(bab)!.push(item);
+    }
+    return Array.from(subjectMap.entries()).map(([subject, babMap]) => ({
+      subject,
+      babs: Array.from(babMap.entries()).map(([bab, items]) => ({ bab, items })),
+    }));
+  }, [filtered]);
 
   function deleteFromBank(id: string) { write("examBank", bank.filter((b) => b.id !== id)); }
 
+  function qtypeSummary(qs: import("@/lib/types").Question[]) {
+    const counts: Record<string, number> = {};
+    for (const q of qs) counts[q.type] = (counts[q.type] || 0) + 1;
+    return Object.entries(counts).map(([t, n]) => `${n} ${QTYPE_LABELS[t] ?? t}`).join(", ");
+  }
+
+  function ExamItem({ item }: { item: ExamBankItem }) {
+    const totalPoin = item.questions.reduce((s, q) => s + q.points, 0);
+    return (
+      <div className="border rounded-lg p-3.5 bg-card hover:bg-accent/30 transition-colors">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0 space-y-2">
+            <div>
+              <p className="text-sm font-semibold leading-snug">{item.title}</p>
+              {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="outline" className="text-xs gap-1"><ClipboardList className="h-3 w-3" />{item.questions.length} soal</Badge>
+              <Badge variant="outline" className="text-xs gap-1"><Clock className="h-3 w-3" />{item.durationMinutes} mnt</Badge>
+              {item.passingScore && <Badge variant="secondary" className="text-xs">KKM {item.passingScore}</Badge>}
+              {item.shuffleQuestions && <Badge variant="outline" className="text-xs gap-1"><Shuffle className="h-3 w-3" />Acak</Badge>}
+            </div>
+            {item.questions.length > 0 && (
+              <div className="bg-muted/50 rounded px-2 py-1.5 space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Tipe soal: <span className="text-foreground">{qtypeSummary(item.questions)}</span></p>
+                <p className="text-xs text-muted-foreground">Total poin: <span className="text-foreground font-medium">{totalPoin}</span></p>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1 shrink-0">
+            <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
+              <Plus className="h-3.5 w-3.5" />Gunakan
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive self-end" onClick={() => deleteFromBank(item.id)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2"><Library className="h-5 w-5 text-primary" />Bank Ujian</DialogTitle>
           <p className="text-sm text-muted-foreground">{myBank.length} ujian tersimpan · Klik "Gunakan" untuk membuat salinan baru.</p>
         </DialogHeader>
-        <div className="space-y-3">
+
+        <div className="shrink-0 space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Cari ujian..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
+            <Input placeholder="Cari judul, mapel, bab, deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
           </div>
+          <div className="flex gap-2 flex-wrap">
+            <Select value={filterSubject} onValueChange={(v) => { setFilterSubject(v); setFilterBab("all"); }}>
+              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Semua Mapel" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">Semua Mapel</SelectItem>
+                {subjects.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {babs.length > 0 && (
+              <Select value={filterBab} onValueChange={setFilterBab}>
+                <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Semua Bab" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">Semua Bab</SelectItem>
+                  {babs.map((b) => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="ml-auto flex gap-1">
+              <Button size="sm" variant={viewMode === "group" ? "default" : "outline"} className="h-8 text-xs px-2.5" onClick={() => setViewMode("group")}><BookMarked className="h-3.5 w-3.5 mr-1" />Per Bab</Button>
+              <Button size="sm" variant={viewMode === "list" ? "default" : "outline"} className="h-8 text-xs px-2.5" onClick={() => setViewMode("list")}><Filter className="h-3.5 w-3.5 mr-1" />Daftar</Button>
+            </div>
+          </div>
+        </div>
 
+        <div className="flex-1 overflow-y-auto min-h-0">
           {myBank.length === 0 ? (
-            <div className="text-center py-10 text-sm text-muted-foreground">
-              <Library className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              Belum ada ujian di bank. Klik "Simpan ke Bank" di kartu ujian untuk menyimpannya.
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              <Library className="h-10 w-10 mx-auto mb-3 opacity-20" />
+              <p className="font-medium">Bank ujian kosong</p>
+              <p className="text-xs mt-1">Klik "Simpan ke Bank" di kartu ujian untuk menyimpannya.</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">Tidak ada yang cocok.</div>
+            <div className="text-center py-10 text-sm text-muted-foreground">Tidak ada ujian yang cocok dengan filter.</div>
+          ) : viewMode === "list" ? (
+            <div className="space-y-2 py-1">
+              {filtered.map((item) => <ExamItem key={item.id} item={item} />)}
+            </div>
           ) : (
-            <div className="space-y-2">
-              {filtered.map((item) => (
-                <div key={item.id} className="border rounded-lg p-3 hover:bg-accent/50 transition-colors">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        {item.subject && <Badge variant="secondary" className="text-xs h-5">{item.subject}{item.bab ? ` – ${item.bab}` : ""}</Badge>}
-                        <Badge variant="outline" className="text-xs h-5 gap-1"><ClipboardList className="h-3 w-3" />{item.questions.length} soal</Badge>
-                        <Badge variant="outline" className="text-xs h-5 gap-1"><Clock className="h-3 w-3" />{item.durationMinutes} mnt</Badge>
-                        {item.passingScore && <Badge variant="outline" className="text-xs h-5">KKM {item.passingScore}</Badge>}
+            <div className="space-y-5 py-1">
+              {grouped.map(({ subject, babs: babGroups }) => (
+                <div key={subject}>
+                  <div className="flex items-center gap-2 mb-2 sticky top-0 bg-background/80 backdrop-blur-sm py-1 z-10">
+                    <BookMarked className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-semibold text-sm">{subject}</span>
+                    <div className="flex-1 border-t" />
+                    <span className="text-xs text-muted-foreground shrink-0">{babGroups.reduce((s, g) => s + g.items.length, 0)} ujian</span>
+                  </div>
+                  <div className="space-y-4 pl-1">
+                    {babGroups.map(({ bab, items }) => (
+                      <div key={bab}>
+                        {bab !== "(Tanpa Bab)" && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <GraduationCap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{bab}</span>
+                            <span className="text-xs text-muted-foreground">({items.length})</span>
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {items.map((item) => <ExamItem key={item.id} item={item} />)}
+                        </div>
                       </div>
-                      <p className="text-sm font-medium">{item.title}</p>
-                      {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
-                        <Plus className="h-3.5 w-3.5" />Gunakan
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteFromBank(item.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
         </DialogFooter>
       </DialogContent>
@@ -976,6 +1219,7 @@ export default function TeacherMaterials() {
   const matBank = useStore<MaterialBankItem[]>("materialBank", []);
   const [examBankOpen, setExamBankOpen] = useState(false);
   const examBank = useStore<ExamBankItem[]>("examBank", []);
+  const [saveExamBankTarget, setSaveExamBankTarget] = useState<Exam | null>(null);
 
   // Exam state
   const [examOpen, setExamOpen] = useState(false);
@@ -1132,20 +1376,7 @@ export default function TeacherMaterials() {
               </>
             )}
             <Button variant="outline" size="sm" onClick={() => { setEditingExam(e); setExamOpen(true); }}><Pencil className="h-3 w-3 mr-1" />Edit</Button>
-            <Button variant="outline" size="sm" onClick={() => {
-              const bankAll = read("examBank", []);
-              const already = bankAll.some((b: ExamBankItem) => b.createdBy === user!.id && b.title === e.title);
-              if (already) { alert("Ujian dengan judul ini sudah ada di bank ujian."); return; }
-              const item: ExamBankItem = {
-                id: uid("eb_"), title: e.title, description: e.description,
-                questions: e.questions, durationMinutes: e.durationMinutes,
-                passingScore: e.passingScore, shuffleQuestions: e.shuffleQuestions,
-                shuffleOptions: e.shuffleOptions,
-                createdBy: user!.id, createdAt: Date.now(),
-              };
-              write("examBank", [...bankAll, item]);
-              alert("Ujian berhasil disimpan ke bank ujian!");
-            }} className="gap-1"><BookmarkPlus className="h-3 w-3" />Simpan ke Bank</Button>
+            <Button variant="outline" size="sm" onClick={() => setSaveExamBankTarget(e)} className="gap-1"><BookmarkPlus className="h-3 w-3" />Simpan ke Bank</Button>
             <Button variant="outline" size="sm" onClick={() => deleteExam(e.id)}><Trash2 className="h-3 w-3 mr-1 text-destructive" />Hapus</Button>
           </div>
         </CardContent>
@@ -1304,6 +1535,7 @@ export default function TeacherMaterials() {
       <ExamDialog open={examOpen} onOpenChange={setExamOpen} teacherId={user!.id} editing={editingExam} onCreated={(e) => setExamScheduleTarget(e)} />
       <MaterialBankDialog open={matBankOpen} onOpenChange={setMatBankOpen} teacherId={user!.id} onUse={startFromBank} />
       <ExamBankDialog open={examBankOpen} onOpenChange={setExamBankOpen} teacherId={user!.id} onUse={startFromExamBank} />
+      <SaveExamToBankDialog open={!!saveExamBankTarget} onOpenChange={(o) => { if (!o) setSaveExamBankTarget(null); }} exam={saveExamBankTarget} teacherId={user!.id} />
 
       {matScheduleTarget && (
         <ScheduleDialog open={!!matScheduleTarget} onOpenChange={(o) => { if (!o) setMatScheduleTarget(null); }}
