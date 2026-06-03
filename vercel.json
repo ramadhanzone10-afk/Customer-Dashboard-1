@@ -1,0 +1,14 @@
+{
+  "buildCommand": "pnpm install --frozen-lockfile=false && pnpm --filter @workspace/api-server run build && cd artifacts/relationships && BASE_PATH=/ node_modules/.bin/vite build --config vite.config.ts",
+  "outputDirectory": "artifacts/relationships/dist/public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/index.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
+}
