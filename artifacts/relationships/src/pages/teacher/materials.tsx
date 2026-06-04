@@ -831,7 +831,7 @@ export function ExamDialog({
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Ujian" : "Buat Ujian Baru"}</DialogTitle>
-          {!editing && <p className="text-sm text-muted-foreground">Buat soal dahulu, lalu jadwalkan ke siswa dari menu Tugas.</p>}
+          {!editing && <p className="text-sm text-muted-foreground">Isi soal, atur deadline & waktu mulai, lalu klik "Jadwalkan" di kartu untuk mengirimkan ke siswa.</p>}
         </DialogHeader>
         <div className="space-y-5">
           <div className="grid md:grid-cols-2 gap-4">
@@ -852,8 +852,9 @@ export function ExamDialog({
               <Input type="number" min="0" max="100" value={passingScore} onChange={(e) => setPassingScore(e.target.value)} />
             </div>
             <div>
-              <Label>Mulai bisa dikerjakan (opsional)</Label>
+              <Label>Waktu Mulai (opsional)</Label>
               <Input type="datetime-local" value={startDT} onChange={(e) => setStartDT(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">Jika diisi, siswa melihat hitung mundur sampai waktu ini sebelum ujian dibuka.</p>
             </div>
             <div>
               <Label>Deadline</Label>
@@ -1503,9 +1504,9 @@ export default function TeacherMaterials() {
           <EmptyHeader>
             <EmptyMedia variant="icon"><BookOpen className="h-6 w-6" /></EmptyMedia>
             <EmptyTitle>Belum ada {emptyType}</EmptyTitle>
-            <EmptyDescription>Buat {emptyType} terlebih dahulu, lalu jadwalkan dari menu Tugas.</EmptyDescription>
+            <EmptyDescription>Buat {emptyType} baru, lalu klik "Jadwalkan" di kartu untuk mengirimkan ke siswa.</EmptyDescription>
           </EmptyHeader>
-          <EmptyContent><Button onClick={onCreateClick}><Plus className="h-4 w-4 mr-2" />Buat {emptyType === "materi" ? "Materi" : "Soal"}</Button></EmptyContent>
+          <EmptyContent><Button onClick={onCreateClick}><Plus className="h-4 w-4 mr-2" />Buat {emptyType === "materi" ? "Materi Baru" : "Soal Baru"}</Button></EmptyContent>
         </Empty>
       );
     }
@@ -1598,7 +1599,7 @@ export default function TeacherMaterials() {
               <EmptyHeader>
                 <EmptyMedia variant="icon"><ClipboardList className="h-6 w-6" /></EmptyMedia>
                 <EmptyTitle>Belum ada ujian</EmptyTitle>
-                <EmptyDescription>Buat soal ujian terlebih dahulu, lalu jadwalkan ke siswa dari menu Tugas.</EmptyDescription>
+                <EmptyDescription>Buat ujian baru lalu klik "Jadwalkan" untuk mengirimkannya ke siswa.</EmptyDescription>
               </EmptyHeader>
               <EmptyContent><Button onClick={() => { setEditingExam(null); setExamOpen(true); }}><Plus className="h-4 w-4 mr-2" />Buat Ujian</Button></EmptyContent>
             </Empty>

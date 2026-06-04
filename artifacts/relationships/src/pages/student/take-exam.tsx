@@ -203,17 +203,7 @@ export default function StudentTakeExam() {
   // Check if exam is available yet
   const now = Date.now();
   if (exam.startDateTime && exam.startDateTime > now) {
-    const opensAt = new Date(exam.startDateTime).toLocaleString("id-ID");
-    return (
-      <div className="max-w-2xl mx-auto text-center py-12 space-y-4">
-        <div className="h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center mx-auto">
-          <Clock className="h-8 w-8 text-amber-600" />
-        </div>
-        <h2 className="text-xl font-semibold">Ujian Belum Dibuka</h2>
-        <p className="text-muted-foreground">Ujian ini akan dibuka pada <strong>{opensAt}</strong></p>
-        <Button asChild variant="outline"><Link href="/student/exams"><ArrowLeft className="h-4 w-4 mr-2" />Kembali</Link></Button>
-      </div>
-    );
+    return <ExamNotOpenYet exam={exam} />;
   }
 
   if (existing) return (
@@ -659,6 +649,49 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="border rounded-md p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function ExamNotOpenYet({ exam }: { exam: Exam }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const target = exam.startDateTime!;
+  const diff = Math.max(0, target - now);
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  const opensAt = new Date(target).toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="max-w-md mx-auto text-center py-16 space-y-6">
+      <div className="h-20 w-20 rounded-full bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center mx-auto">
+        <Lock className="h-10 w-10 text-amber-600" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold mb-1">Ujian Belum Dibuka</h2>
+        <p className="text-sm text-muted-foreground">{exam.title}</p>
+      </div>
+      <div className="bg-muted/50 border rounded-xl p-5 space-y-3">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Dibuka dalam</p>
+        <div className="grid grid-cols-4 gap-2">
+          {[{ v: days, l: "Hari" }, { v: hours, l: "Jam" }, { v: mins, l: "Menit" }, { v: secs, l: "Detik" }].map(({ v, l }) => (
+            <div key={l} className="bg-background border rounded-lg py-3">
+              <div className="text-2xl font-bold tabular-nums">{String(v).padStart(2, "0")}</div>
+              <div className="text-xs text-muted-foreground">{l}</div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Mulai: <span className="font-medium text-foreground">{opensAt}</span></p>
+      </div>
+      <Button asChild variant="outline">
+        <Link href="/student/exams"><ArrowLeft className="h-4 w-4 mr-2" />Kembali ke Daftar Ujian</Link>
+      </Button>
     </div>
   );
 }

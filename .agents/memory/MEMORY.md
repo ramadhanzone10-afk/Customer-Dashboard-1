@@ -1,1 +1,2 @@
 - [Student dashboard architecture](student-dashboard.md) — all student pages use localStorage via useStore hook; no direct DB calls from frontend
+- [Vercel deploy config](vercel-deploy.md) — vercel.json buildCommand, outputDirectory, env vars needed, and common pitfalls
