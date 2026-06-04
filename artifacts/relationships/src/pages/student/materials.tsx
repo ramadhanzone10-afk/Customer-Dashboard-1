@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { BookOpen, Clock, FileText, CheckCircle2, Search, Filter } from "lucide-react";
+import { BookOpen, Clock, FileText, CheckCircle2, Search, Filter, CalendarClock, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,13 +16,27 @@ export default function StudentMaterials() {
   const [activeSubject, setActiveSubject] = useState<string>("Semua");
   const [activeBab, setActiveBab] = useState<string>("Semua");
 
+  const now = Date.now();
+
   const myMaterials = useMemo(
     () =>
       materials
         .filter((m) => m.assignedTo.includes(user!.id))
-        .sort((a, b) => b.createdAt - a.createdAt),
+        .filter((m) => !m.availableUntil || m.availableUntil > now)
+        .sort((a, b) => {
+          // upcoming (not yet open) go after available ones
+          const aOpen = !m_availableFrom(a, now);
+          const bOpen = !m_availableFrom(b, now);
+          if (aOpen !== bOpen) return aOpen ? -1 : 1;
+          return b.createdAt - a.createdAt;
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [materials, user],
   );
+
+  function m_availableFrom(m: { availableFrom?: number }, ts: number) {
+    return m.availableFrom && m.availableFrom > ts;
+  }
 
   const subjects = useMemo(() => {
     const s = new Set(myMaterials.map((m) => m.subject).filter(Boolean) as string[]);
@@ -149,62 +163,94 @@ export default function StudentMaterials() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((m) => {
             const done = isDone(m.id);
-            return (
-              <Link key={m.id} href={`/student/materials/${m.id}`}>
-                <Card
-                  className="cursor-pointer hover:shadow-md transition-shadow h-full"
-                  data-testid={`material-${m.id}`}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="h-10 w-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 flex items-center justify-center shrink-0">
-                        <BookOpen className="h-5 w-5" />
-                      </div>
-                      {done && (
+            const isLocked = !!(m.availableFrom && m.availableFrom > now);
+            const deadlineStr = m.availableUntil
+              ? new Date(m.availableUntil).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+              : null;
+            const openStr = m.availableFrom
+              ? new Date(m.availableFrom).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+              : null;
+
+            const cardEl = (
+              <Card
+                className={`h-full transition-shadow ${isLocked ? "opacity-70 cursor-not-allowed" : "cursor-pointer hover:shadow-md"}`}
+                data-testid={`material-${m.id}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${isLocked ? "bg-muted text-muted-foreground" : "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600"}`}>
+                      {isLocked ? <Lock className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
+                    </div>
+                    <div className="flex gap-1 flex-wrap justify-end">
+                      {isLocked && (
+                        <Badge variant="secondary" className="gap-1 text-xs shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          <CalendarClock className="h-3 w-3" />
+                          Belum Tersedia
+                        </Badge>
+                      )}
+                      {done && !isLocked && (
                         <Badge className="gap-1 shrink-0">
                           <CheckCircle2 className="h-3 w-3" />
                           Selesai
                         </Badge>
                       )}
                     </div>
-                    <CardTitle className="text-base mt-3 leading-snug">{m.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                      {m.description}
+                  </div>
+                  <CardTitle className="text-base mt-3 leading-snug">{m.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                    {m.description}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {m.subject && (
+                      <Badge variant="outline" className="text-xs">
+                        {m.subject}
+                      </Badge>
+                    )}
+                    {m.bab && (
+                      <Badge variant="outline" className="text-xs">
+                        Bab {m.bab}
+                      </Badge>
+                    )}
+                    {m.timerMinutes && (
+                      <Badge variant="secondary" className="gap-1 text-xs">
+                        <Clock className="h-3 w-3" />
+                        {m.timerMinutes} mnt
+                      </Badge>
+                    )}
+                    {m.fileName && (
+                      <Badge variant="secondary" className="gap-1 text-xs">
+                        <FileText className="h-3 w-3" />
+                        File
+                      </Badge>
+                    )}
+                    {m.videoUrl && (
+                      <Badge variant="secondary" className="gap-1 text-xs">
+                        ▶ Video
+                      </Badge>
+                    )}
+                  </div>
+                  {isLocked && openStr && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
+                      <CalendarClock className="h-3 w-3 shrink-0" />
+                      Tersedia mulai {openStr}
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {m.subject && (
-                        <Badge variant="outline" className="text-xs">
-                          {m.subject}
-                        </Badge>
-                      )}
-                      {m.bab && (
-                        <Badge variant="outline" className="text-xs">
-                          Bab {m.bab}
-                        </Badge>
-                      )}
-                      {m.timerMinutes && (
-                        <Badge variant="secondary" className="gap-1 text-xs">
-                          <Clock className="h-3 w-3" />
-                          {m.timerMinutes} mnt
-                        </Badge>
-                      )}
-                      {m.fileName && (
-                        <Badge variant="secondary" className="gap-1 text-xs">
-                          <FileText className="h-3 w-3" />
-                          File
-                        </Badge>
-                      )}
-                      {m.videoUrl && (
-                        <Badge variant="secondary" className="gap-1 text-xs">
-                          ▶ Video
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                  )}
+                  {!isLocked && deadlineStr && (
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      Deadline: {deadlineStr}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+
+            return isLocked ? (
+              <div key={m.id}>{cardEl}</div>
+            ) : (
+              <Link key={m.id} href={`/student/materials/${m.id}`}>{cardEl}</Link>
             );
           })}
         </div>

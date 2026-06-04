@@ -32,6 +32,8 @@ export interface Material {
   createdAt: number;
   status?: "draft" | "published";
   materialType?: "materi" | "soal";
+  availableFrom?: number;
+  availableUntil?: number;
 }
 
 export interface MaterialProgress {

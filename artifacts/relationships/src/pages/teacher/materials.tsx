@@ -136,10 +136,11 @@ function SaveToBankDialog({
 
 // ── Material Bank Dialog ───────────────────────────────────────────────────────
 function MaterialBankDialog({
-  open, onOpenChange, teacherId, onUse,
+  open, onOpenChange, teacherId, onUse, onSchedule,
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   teacherId: string; onUse: (item: MaterialBankItem) => void;
+  onSchedule?: (item: MaterialBankItem) => void;
 }) {
   const bank = useStore<MaterialBankItem[]>("materialBank", []);
   const myBank = useMemo(() => bank.filter((b) => b.createdBy === teacherId).sort((a, b) => b.createdAt - a.createdAt), [bank, teacherId]);
@@ -245,6 +246,11 @@ function MaterialBankDialog({
               <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { onUse(item); onOpenChange(false); }}>
                 <Plus className="h-3.5 w-3.5" />Gunakan
               </Button>
+              {onSchedule && (
+                <Button size="sm" variant="outline" className="h-7 gap-1 text-xs text-primary border-primary/40 hover:bg-primary/10" onClick={() => { onSchedule(item); onOpenChange(false); }}>
+                  <CalendarCheck className="h-3.5 w-3.5" />Jadwalkan
+                </Button>
+              )}
               <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Edit tag" onClick={() => startEdit(item)}>
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -1025,16 +1031,23 @@ export function ExamDialog({
 
 // ── Schedule Dialog ────────────────────────────────────────────────────────────
 export function ScheduleDialog({
-  open, onOpenChange, itemTitle, itemId: _itemId, currentAssigned, students, onConfirm,
+  open, onOpenChange, itemTitle, itemId: _itemId, currentAssigned, students, onConfirm, showDates,
 }: {
   open: boolean; onOpenChange: (o: boolean) => void; itemTitle: string; itemId: string;
-  currentAssigned: string[]; students: User[]; onConfirm: (studentIds: string[]) => void;
+  currentAssigned: string[]; students: User[];
+  onConfirm: (studentIds: string[], availableFrom?: number, availableUntil?: number) => void;
+  showDates?: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(currentAssigned));
   const [mode, setMode] = useState<"kelas" | "siswa">("kelas");
+  const [fromDT, setFromDT] = useState("");
+  const [untilDT, setUntilDT] = useState(defaultDeadline());
 
   useMemo(() => {
-    if (open) { setSelected(new Set(currentAssigned)); setMode("kelas"); }
+    if (open) {
+      setSelected(new Set(currentAssigned)); setMode("kelas");
+      setFromDT(""); setUntilDT(defaultDeadline());
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -1048,7 +1061,13 @@ export function ScheduleDialog({
   function isClassIndeterminate(kelas: string) { const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? []; return ids.some((id) => selected.has(id)) && !ids.every((id) => selected.has(id)); }
   function toggleClass(kelas: string, checked: boolean) { const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? []; setSelected((prev) => { const n = new Set(prev); checked ? ids.forEach((id) => n.add(id)) : ids.forEach((id) => n.delete(id)); return n; }); }
   function toggleStudent(id: string, checked: boolean) { setSelected((prev) => { const n = new Set(prev); checked ? n.add(id) : n.delete(id); return n; }); }
-  function confirm() { onConfirm([...selected]); onOpenChange(false); }
+  function confirm() {
+    if (showDates && !untilDT) return alert("Isi tanggal selesai/deadline.");
+    const af = showDates && fromDT ? fromDatetimeLocal(fromDT) : undefined;
+    const au = showDates && untilDT ? fromDatetimeLocal(untilDT) : undefined;
+    onConfirm([...selected], af, au);
+    onOpenChange(false);
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1058,6 +1077,24 @@ export function ScheduleDialog({
           <p className="text-sm text-muted-foreground line-clamp-1">"{itemTitle}"</p>
         </DialogHeader>
         <div className="space-y-4">
+          {showDates && (
+            <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rentang Waktu</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Mulai dari (opsional)</Label>
+                  <Input type="datetime-local" value={fromDT} onChange={(e) => setFromDT(e.target.value)} className="mt-1 h-8 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs">Selesai / Deadline <span className="text-destructive">*</span></Label>
+                  <Input type="datetime-local" value={untilDT} onChange={(e) => setUntilDT(e.target.value)} className="mt-1 h-8 text-sm" />
+                </div>
+              </div>
+              {fromDT && untilDT && fromDatetimeLocal(fromDT) >= fromDatetimeLocal(untilDT) && (
+                <p className="text-xs text-destructive">Tanggal mulai harus sebelum deadline.</p>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">{selected.size} siswa dipilih</span>
             <div className="flex gap-3">
@@ -1108,7 +1145,7 @@ export function ScheduleDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-          <Button onClick={confirm} className="gap-1"><Send className="h-4 w-4" />Jadwalkan ke {selected.size} Siswa</Button>
+          <Button onClick={confirm} disabled={selected.size === 0} className="gap-1"><Send className="h-4 w-4" />Jadwalkan ke {selected.size} Siswa</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1296,6 +1333,7 @@ export default function TeacherMaterials() {
   const [matScheduleTarget, setMatScheduleTarget] = useState<Material | null>(null);
   const [matBankOpen, setMatBankOpen] = useState(false);
   const matBank = useStore<MaterialBankItem[]>("materialBank", []);
+  const [bankScheduleTarget, setBankScheduleTarget] = useState<MaterialBankItem | null>(null);
   const [examBankOpen, setExamBankOpen] = useState(false);
   const examBank = useStore<ExamBankItem[]>("examBank", []);
   const [saveExamBankTarget, setSaveExamBankTarget] = useState<Exam | null>(null);
@@ -1343,6 +1381,32 @@ export default function TeacherMaterials() {
     setMatOpen(true);
   }
   function openMatSchedule(m: Material) { setMatScheduleTarget(m); }
+
+  function onBankMatScheduled(studentIds: string[], availableFrom?: number, availableUntil?: number) {
+    if (!bankScheduleTarget) return;
+    const mat: Material = {
+      id: uid("m_"), title: bankScheduleTarget.title, description: bankScheduleTarget.description ?? "",
+      content: bankScheduleTarget.content ?? "", subject: bankScheduleTarget.subject, bab: bankScheduleTarget.bab,
+      materialType: bankScheduleTarget.materialType ?? "materi",
+      fileName: bankScheduleTarget.fileName, fileDataUrl: bankScheduleTarget.fileDataUrl,
+      imageDataUrl: bankScheduleTarget.imageDataUrl, videoUrl: bankScheduleTarget.videoUrl,
+      videoFileName: bankScheduleTarget.videoFileName, videoDataUrl: bankScheduleTarget.videoDataUrl,
+      timerMinutes: bankScheduleTarget.timerMinutes,
+      createdBy: user!.id, assignedTo: studentIds, status: "published", createdAt: Date.now(),
+      availableFrom, availableUntil,
+    };
+    write("materials", [...read("materials", []), mat]);
+    if (studentIds.length) {
+      const notifs: AppNotification[] = studentIds.map((sid) => ({
+        id: uid("n_"), userId: sid, type: "new_material", title: "Materi baru",
+        message: `"${mat.title}" telah dijadwalkan untuk Anda.`, link: "/student/materials",
+        createdAt: Date.now(), read: false,
+      }));
+      write("notifications", [...read("notifications", []), ...notifs]);
+      void mcApi.createMaterial(mat).catch(() => {});
+    }
+    setBankScheduleTarget(null);
+  }
 
   function deleteMaterial(id: string) {
     if (!confirm("Hapus ini?")) return;
@@ -1612,7 +1676,7 @@ export default function TeacherMaterials() {
       {/* Dialogs */}
       <MaterialDialog open={matOpen} onOpenChange={setMatOpen} editing={editingMaterial} materialType={newMaterialType} teacherId={user!.id} onCreated={(m) => setMatScheduleTarget(m)} />
       <ExamDialog open={examOpen} onOpenChange={setExamOpen} teacherId={user!.id} editing={editingExam} onCreated={(e) => setExamScheduleTarget(e)} />
-      <MaterialBankDialog open={matBankOpen} onOpenChange={setMatBankOpen} teacherId={user!.id} onUse={startFromBank} />
+      <MaterialBankDialog open={matBankOpen} onOpenChange={setMatBankOpen} teacherId={user!.id} onUse={startFromBank} onSchedule={(item) => setBankScheduleTarget(item)} />
       <ExamBankDialog open={examBankOpen} onOpenChange={setExamBankOpen} teacherId={user!.id} onUse={startFromExamBank} />
       <SaveExamToBankDialog open={!!saveExamBankTarget} onOpenChange={(o) => { if (!o) setSaveExamBankTarget(null); }} exam={saveExamBankTarget} teacherId={user!.id} />
 
@@ -1627,6 +1691,13 @@ export default function TeacherMaterials() {
           itemTitle={examScheduleTarget.title} itemId={examScheduleTarget.id}
           currentAssigned={examScheduleTarget.assignedTo} students={myStudents}
           onConfirm={(ids) => onExamScheduled(examScheduleTarget.id, ids)} />
+      )}
+      {bankScheduleTarget && (
+        <ScheduleDialog open={!!bankScheduleTarget} onOpenChange={(o) => { if (!o) setBankScheduleTarget(null); }}
+          itemTitle={bankScheduleTarget.title} itemId={bankScheduleTarget.id}
+          currentAssigned={[]} students={myStudents}
+          showDates
+          onConfirm={onBankMatScheduled} />
       )}
     </div>
   );
