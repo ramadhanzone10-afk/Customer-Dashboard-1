@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     syncFromBackend();
-    const interval = setInterval(syncFromBackend, 30_000);
+    const interval = setInterval(syncFromBackend, 15_000);
     const onFocus = () => void syncFromBackend();
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(interval); window.removeEventListener("focus", onFocus); };

@@ -19,6 +19,8 @@ export const mcMaterialsTable = pgTable("mc_materials", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   status: text("status").notNull().default("draft"),
   materialType: text("material_type").notNull().default("materi"),
+  availableFrom: bigint("available_from", { mode: "number" }),
+  availableUntil: bigint("available_until", { mode: "number" }),
 });
 
 export const mcMaterialProgressTable = pgTable("mc_material_progress", {

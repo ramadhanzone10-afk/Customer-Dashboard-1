@@ -19,6 +19,26 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, useStore } from "@/lib/auth";
+
+function playNotifSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+    osc.onended = () => ctx.close();
+  } catch {
+    // AudioContext not supported, skip sound
+  }
+}
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -78,6 +98,7 @@ export function Layout({ children }: { children: ReactNode }) {
     if (unread > prevUnreadRef.current) {
       const newest = myNotifs.find((n) => !n.read);
       if (newest) {
+        playNotifSound();
         toast(newest.title, {
           description: newest.message,
           duration: 5000,

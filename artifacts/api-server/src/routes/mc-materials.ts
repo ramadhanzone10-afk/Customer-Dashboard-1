@@ -14,6 +14,8 @@ router.get("/mc/materials", requireAuth, async (_req, res) => {
     assignedTo: r.assignedTo as string[],
     status: r.status ?? "draft",
     materialType: r.materialType ?? "materi",
+    availableFrom: r.availableFrom ?? undefined,
+    availableUntil: r.availableUntil ?? undefined,
   })));
 });
 
@@ -30,14 +32,17 @@ router.post("/mc/materials", requireTeacher, async (req, res) => {
   };
   if (!m.id || !m.title) { res.status(400).json({ error: "Data tidak lengkap." }); return; }
   const createdBy = req.jwtUser!.userId;
+  const body = m as Record<string, unknown>;
   const [created] = await db.insert(mcMaterialsTable).values({
     ...m, createdBy, assignedTo: m.assignedTo ?? [],
     timerMinutes: m.timerMinutes ?? null,
     fileName: m.fileName ?? null, fileDataUrl: m.fileDataUrl ?? null,
-    imageDataUrl: (m as Record<string, unknown>).imageDataUrl as string | null ?? null,
+    imageDataUrl: body.imageDataUrl as string | null ?? null,
     videoUrl: m.videoUrl ?? null, videoFileName: m.videoFileName ?? null, videoDataUrl: m.videoDataUrl ?? null,
     status: m.status ?? "draft",
     materialType: m.materialType ?? "materi",
+    availableFrom: (body.availableFrom as number | null | undefined) ?? null,
+    availableUntil: (body.availableUntil as number | null | undefined) ?? null,
   }).returning();
   if (m.notifications?.length) {
     await db.insert(mcNotificationsTable).values(m.notifications.map((n) => ({ ...n, link: n.link ?? null, read: false })));
@@ -47,6 +52,8 @@ router.post("/mc/materials", requireTeacher, async (req, res) => {
     assignedTo: created.assignedTo as string[],
     status: created.status ?? "draft",
     materialType: created.materialType ?? "materi",
+    availableFrom: created.availableFrom ?? undefined,
+    availableUntil: created.availableUntil ?? undefined,
   });
 });
 
@@ -55,11 +62,14 @@ router.put("/mc/materials/:id", requireTeacher, async (req, res) => {
     notifications?: { id: string; userId: string; type: string; title: string; message: string; link?: string; createdAt: number }[];
   };
   const { notifications, ...updates } = m;
+  const upd = updates as Record<string, unknown>;
   const [updated] = await db.update(mcMaterialsTable).set({
     ...updates,
     assignedTo: updates.assignedTo ?? undefined,
     status: updates.status ?? undefined,
     materialType: updates.materialType ?? undefined,
+    availableFrom: upd.availableFrom !== undefined ? (upd.availableFrom as number | null) : undefined,
+    availableUntil: upd.availableUntil !== undefined ? (upd.availableUntil as number | null) : undefined,
   }).where(eq(mcMaterialsTable.id, req.params.id)).returning();
   if (!updated) { res.status(404).json({ error: "Materi tidak ditemukan." }); return; }
   if (notifications?.length) {
@@ -70,6 +80,8 @@ router.put("/mc/materials/:id", requireTeacher, async (req, res) => {
     assignedTo: updated.assignedTo as string[],
     status: updated.status ?? "draft",
     materialType: updated.materialType ?? "materi",
+    availableFrom: updated.availableFrom ?? undefined,
+    availableUntil: updated.availableUntil ?? undefined,
   });
 });
 
