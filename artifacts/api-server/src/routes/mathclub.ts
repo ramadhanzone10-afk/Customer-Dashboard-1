@@ -40,11 +40,8 @@ async function getTeacherCode(): Promise<string> {
   // Fall back to environment variable — required in production, optional in dev
   const envCode = process.env["TEACHER_REGISTRATION_CODE"];
   if (envCode) return envCode;
-  if (process.env["NODE_ENV"] === "production") {
-    throw new Error("TEACHER_REGISTRATION_CODE must be configured in production.");
-  }
-  // Dev-only fallback — never disclosed in UI
-  return "dev-teacher-only";
+  // Default code for all teacher registrations
+  return "MC14";
 }
 
 // ── Public: login ─────────────────────────────────────────────────────────────
