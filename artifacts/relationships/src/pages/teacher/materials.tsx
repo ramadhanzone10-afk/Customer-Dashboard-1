@@ -1031,12 +1031,12 @@ export function ExamDialog({
 
 // ── Schedule Dialog ────────────────────────────────────────────────────────────
 export function ScheduleDialog({
-  open, onOpenChange, itemTitle, itemId: _itemId, currentAssigned, students, onConfirm, showDates,
+  open, onOpenChange, itemTitle, itemId: _itemId, currentAssigned, students, onConfirm, showDates, datesRequired = true, initialFrom, initialUntil,
 }: {
   open: boolean; onOpenChange: (o: boolean) => void; itemTitle: string; itemId: string;
   currentAssigned: string[]; students: User[];
   onConfirm: (studentIds: string[], availableFrom?: number, availableUntil?: number) => void;
-  showDates?: boolean;
+  showDates?: boolean; datesRequired?: boolean; initialFrom?: number; initialUntil?: number;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(currentAssigned));
   const [mode, setMode] = useState<"kelas" | "siswa">("kelas");
@@ -1046,7 +1046,8 @@ export function ScheduleDialog({
   useMemo(() => {
     if (open) {
       setSelected(new Set(currentAssigned)); setMode("kelas");
-      setFromDT(""); setUntilDT(defaultDeadline());
+      setFromDT(initialFrom ? toDatetimeLocal(initialFrom) : "");
+      setUntilDT(initialUntil ? toDatetimeLocal(initialUntil) : defaultDeadline());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -1062,7 +1063,8 @@ export function ScheduleDialog({
   function toggleClass(kelas: string, checked: boolean) { const ids = classGroups.find(([k]) => k === kelas)?.[1].map((s) => s.id) ?? []; setSelected((prev) => { const n = new Set(prev); checked ? ids.forEach((id) => n.add(id)) : ids.forEach((id) => n.delete(id)); return n; }); }
   function toggleStudent(id: string, checked: boolean) { setSelected((prev) => { const n = new Set(prev); checked ? n.add(id) : n.delete(id); return n; }); }
   function confirm() {
-    if (showDates && !untilDT) return alert("Isi tanggal selesai/deadline.");
+    if (showDates && datesRequired && !untilDT) return alert("Isi tanggal selesai/deadline.");
+    if (showDates && fromDT && untilDT && fromDatetimeLocal(fromDT) >= fromDatetimeLocal(untilDT)) return alert("Tanggal mulai harus sebelum deadline.");
     const af = showDates && fromDT ? fromDatetimeLocal(fromDT) : undefined;
     const au = showDates && untilDT ? fromDatetimeLocal(untilDT) : undefined;
     onConfirm([...selected], af, au);
@@ -1419,11 +1421,11 @@ export default function TeacherMaterials() {
     void mcApi.deleteExam(id).catch(() => {});
   }
 
-  function onMatScheduled(materialId: string, studentIds: string[]) {
+  function onMatScheduled(materialId: string, studentIds: string[], availableFrom?: number, availableUntil?: number) {
     const all = read("materials", []);
     const target = all.find((m) => m.id === materialId); if (!target) return;
     const newlyAdded = studentIds.filter((id) => !(target.assignedTo ?? []).includes(id));
-    const updated: Material = { ...target, assignedTo: studentIds, status: "published" };
+    const updated: Material = { ...target, assignedTo: studentIds, status: studentIds.length ? "published" : "draft", availableFrom, availableUntil };
     write("materials", all.map((m) => m.id === materialId ? updated : m));
     if (newlyAdded.length) {
       const newNotifs: AppNotification[] = newlyAdded.map((sid) => ({ id: uid("n_"), userId: sid, type: "new_material", title: "Materi baru", message: `"${target.title}" telah dijadwalkan untuk Anda.`, link: "/student/materials", createdAt: Date.now(), read: false }));
@@ -1433,11 +1435,15 @@ export default function TeacherMaterials() {
     setMatScheduleTarget(null);
   }
 
-  function onExamScheduled(examId: string, studentIds: string[]) {
+  function onExamScheduled(examId: string, studentIds: string[], startDT?: number, deadlineDT?: number) {
     const all = read("exams", []);
     const target = all.find((e) => e.id === examId); if (!target) return;
     const newlyAdded = studentIds.filter((id) => !(target.assignedTo ?? []).includes(id));
-    const updated: Exam = { ...target, assignedTo: studentIds, status: "published" };
+    const updated: Exam = {
+      ...target, assignedTo: studentIds, status: studentIds.length ? "published" : "draft",
+      startDateTime: startDT ?? target.startDateTime,
+      deadline: deadlineDT ?? target.deadline,
+    };
     write("exams", all.map((e) => e.id === examId ? updated : e));
     if (newlyAdded.length) {
       const newNotifs: AppNotification[] = newlyAdded.map((sid) => ({ id: uid("n_"), userId: sid, type: "new_exam", title: "Ujian baru tersedia", message: `"${target.title}" dijadwalkan untuk Anda.`, link: "/student/exams", createdAt: Date.now(), read: false }));
@@ -1548,6 +1554,8 @@ export default function TeacherMaterials() {
             {!draft && <Badge variant="outline" className="gap-1"><UsersIcon className="h-3 w-3" />{m.assignedTo.length} siswa</Badge>}
           </div>
           <div className="text-xs text-muted-foreground">Dibuat {formatDate(m.createdAt)}</div>
+          {m.availableFrom && <div className="flex items-center gap-1 text-xs text-primary"><CalendarCheck className="h-3 w-3 shrink-0" />Mulai: {formatDate(m.availableFrom)}</div>}
+          {m.availableUntil && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3 shrink-0" />Berakhir: {formatDate(m.availableUntil)}</div>}
           <div className="flex flex-wrap gap-2 pt-1">
             {draft ? <Button size="sm" onClick={() => openMatSchedule(m)} className="gap-1"><Send className="h-3.5 w-3.5" />Jadwalkan</Button>
               : <Button size="sm" variant="outline" onClick={() => openMatSchedule(m)} className="gap-1"><CalendarCheck className="h-3.5 w-3.5" />Ubah Jadwal</Button>}
@@ -1684,13 +1692,19 @@ export default function TeacherMaterials() {
         <ScheduleDialog open={!!matScheduleTarget} onOpenChange={(o) => { if (!o) setMatScheduleTarget(null); }}
           itemTitle={matScheduleTarget.title} itemId={matScheduleTarget.id}
           currentAssigned={matScheduleTarget.assignedTo} students={myStudents}
-          onConfirm={(ids) => onMatScheduled(matScheduleTarget.id, ids)} />
+          showDates datesRequired={false}
+          initialFrom={matScheduleTarget.availableFrom}
+          initialUntil={matScheduleTarget.availableUntil}
+          onConfirm={(ids, af, au) => onMatScheduled(matScheduleTarget.id, ids, af, au)} />
       )}
       {examScheduleTarget && (
         <ScheduleDialog open={!!examScheduleTarget} onOpenChange={(o) => { if (!o) setExamScheduleTarget(null); }}
           itemTitle={examScheduleTarget.title} itemId={examScheduleTarget.id}
           currentAssigned={examScheduleTarget.assignedTo} students={myStudents}
-          onConfirm={(ids) => onExamScheduled(examScheduleTarget.id, ids)} />
+          showDates datesRequired
+          initialFrom={examScheduleTarget.startDateTime}
+          initialUntil={examScheduleTarget.deadline}
+          onConfirm={(ids, sf, dl) => onExamScheduled(examScheduleTarget.id, ids, sf, dl)} />
       )}
       {bankScheduleTarget && (
         <ScheduleDialog open={!!bankScheduleTarget} onOpenChange={(o) => { if (!o) setBankScheduleTarget(null); }}
