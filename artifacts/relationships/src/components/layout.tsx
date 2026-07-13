@@ -1,7 +1,6 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useRef, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  GraduationCap,
   LayoutDashboard,
   Users,
   BookOpen,
@@ -14,7 +13,11 @@ import {
   X,
   User as UserIcon,
   MessageCircle,
+  CheckCircle2,
+  CreditCard,
+  Megaphone,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth, useStore } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,8 +72,34 @@ export function Layout({ children }: { children: ReactNode }) {
   );
   const unread = myNotifs.filter((n) => !n.read).length;
 
+  const prevUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevUnreadRef.current === null) { prevUnreadRef.current = unread; return; }
+    if (unread > prevUnreadRef.current) {
+      const newest = myNotifs.find((n) => !n.read);
+      if (newest) {
+        toast(newest.title, {
+          description: newest.message,
+          duration: 5000,
+          action: newest.link ? { label: "Lihat", onClick: () => { window.location.href = newest.link!; } } : undefined,
+        });
+      }
+    }
+    prevUnreadRef.current = unread;
+  }, [unread, myNotifs]);
+
   if (!user) return null;
   const nav = user.role === "teacher" ? teacherNav : studentNav;
+
+  function notifIcon(type: AppNotification["type"]) {
+    if (type === "new_material") return <BookOpen className="h-3 w-3 text-blue-500" />;
+    if (type === "new_exam") return <ClipboardList className="h-3 w-3 text-amber-500" />;
+    if (type === "exam_graded") return <CheckCircle2 className="h-3 w-3 text-emerald-500" />;
+    if (type === "payment_verified" || type === "payment_uploaded" || type === "payment_due") return <CreditCard className="h-3 w-3 text-purple-500" />;
+    if (type === "new_student") return <Users className="h-3 w-3 text-emerald-500" />;
+    if (type === "announcement") return <Megaphone className="h-3 w-3 text-orange-500" />;
+    return <Bell className="h-3 w-3 text-muted-foreground" />;
+  }
 
   function markAllRead() {
     const all = read("notifications", []);
@@ -230,12 +259,11 @@ export function Layout({ children }: { children: ReactNode }) {
                           )}
                         >
                           <div className="font-medium flex items-center gap-1.5">
-                            {n.type === "new_student" && (
-                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 shrink-0">
-                                <Users className="h-2.5 w-2.5" />
-                              </span>
-                            )}
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-muted shrink-0">
+                              {notifIcon(n.type)}
+                            </span>
                             {n.title}
+                            {!n.read && <span className="ml-auto h-2 w-2 rounded-full bg-primary shrink-0" />}
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
                           <div className="text-[10px] text-muted-foreground mt-1">

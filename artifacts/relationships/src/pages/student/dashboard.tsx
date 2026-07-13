@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   BookOpen,
@@ -10,6 +10,10 @@ import {
   AlertCircle,
   FileEdit,
   CheckCircle2,
+  Timer,
+  Lock,
+  Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +27,59 @@ import type {
   ExamSubmission,
   Payment,
 } from "@/lib/types";
-import { formatDate, formatMonth } from "@/lib/format";
+import { formatDate, formatDateTime, formatMonth } from "@/lib/format";
+
+function useCountdown(targetMs: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = targetMs - now;
+  if (diff <= 0) return null;
+  const totalSec = Math.floor(diff / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  return { days, hours, mins, secs, totalSec };
+}
+
+function CountdownChip({
+  targetMs,
+  label,
+}: {
+  targetMs: number;
+  label: string;
+}) {
+  const t = useCountdown(targetMs);
+  if (!t) return null;
+  const isVeryUrgent = t.totalSec < 3600;
+  const isUrgent = t.totalSec < 86400;
+
+  const text =
+    t.days > 0
+      ? `${t.days}h ${t.hours}j ${t.mins}m`
+      : t.hours > 0
+        ? `${t.hours}j ${t.mins}m ${t.secs}d`
+        : `${t.mins}m ${t.secs}d`;
+
+  return (
+    <div
+      className={`flex items-center gap-1 text-[11px] rounded-md px-2 py-1 font-mono tabular-nums border shrink-0 ${
+        isVeryUrgent
+          ? "bg-destructive/10 border-destructive/30 text-destructive"
+          : isUrgent
+            ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400"
+            : "bg-muted/50 border-border text-muted-foreground"
+      }`}
+    >
+      <Timer className="h-3 w-3 shrink-0" />
+      <span className="text-[10px] mr-0.5">{label}</span>
+      <span className="font-semibold">{text}</span>
+    </div>
+  );
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -32,6 +88,8 @@ export default function StudentDashboard() {
   const exams = useStore<Exam[]>("exams", []);
   const submissions = useStore<ExamSubmission[]>("examSubmissions", []);
   const payments = useStore<Payment[]>("payments", []);
+
+  const now = Date.now();
 
   const myMaterials = useMemo(
     () => materials.filter((m) => m.assignedTo.includes(user!.id)),
@@ -55,23 +113,29 @@ export default function StudentDashboard() {
   );
 
   const matCompletion =
-    myMaterials.length === 0 ? 0 : Math.round((myProgress.length / myMaterials.length) * 100);
+    myMaterials.length === 0
+      ? 0
+      : Math.round((myProgress.length / myMaterials.length) * 100);
 
   const upcomingUjian = myExams
     .filter(
       (e) =>
         (!e.type || e.type === "exam") &&
         !mySubs.some((s) => s.examId === e.id) &&
-        e.deadline > Date.now(),
+        e.deadline > now,
     )
-    .sort((a, b) => a.deadline - b.deadline);
+    .sort((a, b) => {
+      const aTarget = a.startDateTime && a.startDateTime > now ? a.startDateTime : a.deadline;
+      const bTarget = b.startDateTime && b.startDateTime > now ? b.startDateTime : b.deadline;
+      return aTarget - bTarget;
+    });
 
   const upcomingTugas = myExams
     .filter(
       (e) =>
         e.type === "tugas" &&
         !mySubs.some((s) => s.examId === e.id) &&
-        e.deadline > Date.now(),
+        e.deadline > now,
     )
     .sort((a, b) => a.deadline - b.deadline);
 
@@ -83,8 +147,10 @@ export default function StudentDashboard() {
     recentGradedSubs.length === 0
       ? null
       : Math.round(
-          recentGradedSubs.reduce((acc, s) => acc + (s.totalScore / s.maxScore) * 100, 0) /
-            recentGradedSubs.length,
+          recentGradedSubs.reduce(
+            (acc, s) => acc + (s.totalScore / s.maxScore) * 100,
+            0,
+          ) / recentGradedSubs.length,
         );
 
   const currentMonth = (() => {
@@ -102,6 +168,23 @@ export default function StudentDashboard() {
       const pb = myProgress.find((p) => p.materialId === b.id && p.userId === user!.id);
       return (pb?.completedAt ?? 0) - (pa?.completedAt ?? 0);
     })
+    .slice(0, 3);
+
+  const newMaterials = myMaterials
+    .filter((m) => {
+      const isNew = now - m.createdAt < 72 * 3600 * 1000;
+      const notDone = !myProgress.some((p) => p.materialId === m.id && p.userId === user!.id);
+      const isOpen = !m.availableFrom || m.availableFrom <= now;
+      return isNew && notDone && isOpen && m.status !== "draft";
+    })
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 4);
+
+  const comingSoonMaterials = myMaterials
+    .filter(
+      (m) => m.availableFrom && m.availableFrom > now && m.status !== "draft",
+    )
+    .sort((a, b) => (a.availableFrom ?? 0) - (b.availableFrom ?? 0))
     .slice(0, 3);
 
   return (
@@ -139,6 +222,62 @@ export default function StudentDashboard() {
           value={avgGrade !== null ? `${avgGrade}/100` : "-"}
         />
       </div>
+
+      {(newMaterials.length > 0 || comingSoonMaterials.length > 0) && (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {newMaterials.length > 0 && (
+            <Card className="border-indigo-200 bg-indigo-50/40 dark:bg-indigo-950/20">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-base flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                  <Sparkles className="h-4 w-4" />
+                  Materi Baru
+                </CardTitle>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/student/materials">
+                    Lihat semua <ArrowRight className="h-3 w-3 ml-1" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-1.5">
+                {newMaterials.map((m) => (
+                  <Link key={m.id} href={`/student/materials/${m.id}`}>
+                    <div className="flex items-center gap-2 text-sm hover:bg-indigo-100/60 dark:hover:bg-indigo-900/30 rounded-md px-2 py-1.5 transition-colors cursor-pointer">
+                      <BookOpen className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                      <span className="truncate flex-1">{m.title}</span>
+                      <Badge className="text-[10px] shrink-0 bg-indigo-500 hover:bg-indigo-500 text-white">
+                        Baru
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {comingSoonMaterials.length > 0 && (
+            <Card className="border-violet-200 bg-violet-50/40 dark:bg-violet-950/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 text-violet-700 dark:text-violet-400">
+                  <CalendarClock className="h-4 w-4" />
+                  Segera Tersedia
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {comingSoonMaterials.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-md bg-violet-100/40 dark:bg-violet-900/20"
+                  >
+                    <Lock className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                    <span className="truncate flex-1 text-muted-foreground">{m.title}</span>
+                    <CountdownChip targetMs={m.availableFrom!} label="buka" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-4">
@@ -278,11 +417,14 @@ function ExamRow({
   isTugas?: boolean;
   testId?: string;
 }) {
-  const daysLeft = Math.ceil((exam.deadline - Date.now()) / 86400000);
+  const now = Date.now();
+  const notStarted = exam.startDateTime && exam.startDateTime > now;
+  const countdownTarget = notStarted ? exam.startDateTime! : exam.deadline;
+
   return (
     <Link href={`/student/exams/${exam.id}`}>
       <div
-        className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors cursor-pointer"
+        className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors cursor-pointer"
         data-testid={testId}
       >
         <div
@@ -292,24 +434,29 @@ function ExamRow({
               : "bg-amber-100 dark:bg-amber-900/40 text-amber-600"
           }`}
         >
-          {isTugas ? <FileEdit className="h-4 w-4" /> : <ClipboardList className="h-4 w-4" />}
+          {notStarted ? (
+            <Lock className="h-4 w-4" />
+          ) : isTugas ? (
+            <FileEdit className="h-4 w-4" />
+          ) : (
+            <ClipboardList className="h-4 w-4" />
+          )}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1">
           <div className="font-medium text-sm truncate">{exam.title}</div>
           <div className="text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            Deadline {formatDate(exam.deadline)}
+            <Clock className="h-3 w-3 shrink-0" />
+            {notStarted ? (
+              <>Mulai {formatDateTime(exam.startDateTime!)}</>
+            ) : (
+              <>Deadline {formatDate(exam.deadline)}</>
+            )}
           </div>
+          <CountdownChip
+            targetMs={countdownTarget}
+            label={notStarted ? "mulai" : "deadline"}
+          />
         </div>
-        {daysLeft <= 3 ? (
-          <Badge variant="destructive" className="text-xs shrink-0">
-            {daysLeft <= 0 ? "Hari ini!" : `${daysLeft}h`}
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="text-xs shrink-0">
-            {isTugas ? "Tugas" : `${exam.questions.length} soal`}
-          </Badge>
-        )}
       </div>
     </Link>
   );
