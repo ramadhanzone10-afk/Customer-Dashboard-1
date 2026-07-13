@@ -1,6 +1,5 @@
 const REQUIRED_IN_PRODUCTION: Record<string, string> = {
   DATABASE_URL: "PostgreSQL connection string (e.g. postgres://user:pass@host/db)",
-  JWT_SECRET: "Random secret string (min 32 chars) for signing JWT tokens",
 };
 
 const OPTIONAL_WITH_DEFAULTS: Record<string, string> = {

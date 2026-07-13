@@ -2,10 +2,10 @@ import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
 function getSecret(): string {
-  const secret = process.env["JWT_SECRET"];
+  const secret = process.env["JWT_SECRET"] ?? process.env["SESSION_SECRET"];
   if (!secret) {
     if (process.env["NODE_ENV"] === "production") {
-      throw new Error("JWT_SECRET environment variable is required in production.");
+      throw new Error("JWT_SECRET or SESSION_SECRET environment variable is required in production.");
     }
     return "mc-dev-only-secret-not-for-production";
   }

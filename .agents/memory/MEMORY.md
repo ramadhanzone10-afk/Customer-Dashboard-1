@@ -1,2 +1,3 @@
 - [Student dashboard architecture](student-dashboard.md) — all student pages use localStorage via useStore hook; no direct DB calls from frontend
 - [Vercel deploy config](vercel-deploy.md) — vercel.json buildCommand, outputDirectory, env vars needed, and common pitfalls
+- [Production JWT fix](production-jwt.md) — JWT_SECRET not set in prod; fixed by falling back to SESSION_SECRET (already provisioned by Replit)
