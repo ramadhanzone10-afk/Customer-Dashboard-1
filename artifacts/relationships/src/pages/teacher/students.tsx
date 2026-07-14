@@ -223,16 +223,20 @@ export default function TeacherStudents() {
     write("users", allUsers.filter((u) => u.id !== s.id));
     void mcApi.deleteUser(s.id).catch(() => {});
 
+    // Remove student from materials assignedTo and sync to API
     const allMats = read("materials", []);
-    write(
-      "materials",
-      allMats.map((m) => ({ ...m, assignedTo: m.assignedTo.filter((id) => id !== s.id) })),
-    );
+    const updatedMats = allMats.map((m) => ({ ...m, assignedTo: m.assignedTo.filter((id) => id !== s.id) }));
+    write("materials", updatedMats);
+    const affectedMats = updatedMats.filter((_, i) => allMats[i].assignedTo.includes(s.id));
+    void Promise.all(affectedMats.map((m) => mcApi.updateMaterial(m.id, { assignedTo: m.assignedTo }).catch(() => {}))).catch(() => {});
+
+    // Remove student from exams assignedTo and sync to API
     const allExams = read("exams", []);
-    write(
-      "exams",
-      allExams.map((e) => ({ ...e, assignedTo: e.assignedTo.filter((id) => id !== s.id) })),
-    );
+    const updatedExams = allExams.map((e) => ({ ...e, assignedTo: e.assignedTo.filter((id) => id !== s.id) }));
+    write("exams", updatedExams);
+    const affectedExams = updatedExams.filter((_, i) => allExams[i].assignedTo.includes(s.id));
+    void Promise.all(affectedExams.map((e) => mcApi.updateExam(e.id, { assignedTo: e.assignedTo }).catch(() => {}))).catch(() => {});
+
     write(
       "materialProgress",
       read("materialProgress", []).filter((p) => p.userId !== s.id),
@@ -716,19 +720,17 @@ function AddStudentDialog({
 
     if (enrollAll) {
       const mats: Material[] = read("materials", []);
-      write(
-        "materials",
-        mats.map((m) => ({ ...m, assignedTo: [...m.assignedTo, newStudent.id] })),
-      );
+      const updatedMats = mats.map((m) => ({ ...m, assignedTo: [...m.assignedTo, newStudent.id] }));
+      write("materials", updatedMats);
+      void Promise.all(updatedMats.map((m) => mcApi.updateMaterial(m.id, { assignedTo: m.assignedTo }).catch(() => {}))).catch(() => {});
+
       const exs: Exam[] = read("exams", []);
-      write(
-        "exams",
-        exs.map((e) =>
-          e.deadline > Date.now()
-            ? { ...e, assignedTo: [...e.assignedTo, newStudent.id] }
-            : e,
-        ),
+      const updatedExs = exs.map((e) =>
+        e.deadline > Date.now() ? { ...e, assignedTo: [...e.assignedTo, newStudent.id] } : e,
       );
+      write("exams", updatedExs);
+      const activeExs = updatedExs.filter((e) => e.deadline > Date.now());
+      void Promise.all(activeExs.map((e) => mcApi.updateExam(e.id, { assignedTo: e.assignedTo }).catch(() => {}))).catch(() => {});
     }
 
     // Auto-create payment for current month
@@ -1298,17 +1300,19 @@ function ImportExcelDialog({
     void mcApi.createPaymentsBatch(newPayments).catch(() => {});
 
     if (enrollAll) {
+      const newIds = newStudents.map((s) => s.id);
       const mats: Material[] = read("materials", []);
-      write("materials", mats.map((m) => ({
-        ...m,
-        assignedTo: [...m.assignedTo, ...newStudents.map((s) => s.id)],
-      })));
+      const updatedMats = mats.map((m) => ({ ...m, assignedTo: [...m.assignedTo, ...newIds] }));
+      write("materials", updatedMats);
+      void Promise.all(updatedMats.map((m) => mcApi.updateMaterial(m.id, { assignedTo: m.assignedTo }).catch(() => {}))).catch(() => {});
+
       const exs: Exam[] = read("exams", []);
-      write("exams", exs.map((e) =>
-        e.deadline > Date.now()
-          ? { ...e, assignedTo: [...e.assignedTo, ...newStudents.map((s) => s.id)] }
-          : e,
-      ));
+      const updatedExs = exs.map((e) =>
+        e.deadline > Date.now() ? { ...e, assignedTo: [...e.assignedTo, ...newIds] } : e,
+      );
+      write("exams", updatedExs);
+      const activeExs = updatedExs.filter((e) => e.deadline > Date.now());
+      void Promise.all(activeExs.map((e) => mcApi.updateExam(e.id, { assignedTo: e.assignedTo }).catch(() => {}))).catch(() => {});
     }
 
     setDone(true);
