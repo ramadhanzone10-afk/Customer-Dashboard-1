@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { read, uid } from "@/lib/storage";
 import { mcApi } from "@/lib/api-client";
 import type { ApiUser } from "@/lib/api-client";
-import logoUrl from "@assets/Logo_MathCourse_1777550046532.png";
+import logoUrl from "@assets/ChatGPT_Image_Jul_18,_2026,_06_36_36_AM_1784331431257.png";
 
 const AVATAR_COLORS = [
   "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#3b82f6",
