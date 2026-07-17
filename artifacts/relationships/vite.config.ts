@@ -20,11 +20,6 @@ if (!isBuild) {
   if (Number.isNaN(port) || port <= 0) {
     throw new Error(`Invalid PORT value: "${rawPort}"`);
   }
-  if (!process.env.BASE_PATH) {
-    throw new Error(
-      "BASE_PATH environment variable is required but was not provided.",
-    );
-  }
 }
 
 export default defineConfig({
