@@ -212,12 +212,12 @@ export default function TeacherPayments() {
     const phone = formatPhoneForWa(student.phone);
     if (!phone) return null;
     const text = encodeURIComponent(
-      `Halo ${student.name}, ini pengingat dari Math Core: pembayaran SPP bulan ${formatMonth(activeMonth)} sebesar ${formatCurrency(350000)} belum kami terima. Mohon segera melakukan pembayaran. Terima kasih.`,
+      `Halo ${student.name}, ini pengingat dari Math Core: pembayaran SPP bulan ${formatMonth(activeMonth)} sebesar ${formatCurrency(60000)} belum kami terima. Mohon segera melakukan pembayaran. Terima kasih.`,
     );
     return `https://wa.me/${phone}?text=${text}`;
   }
 
-  const SPP = 350000;
+  const SPP = 60000;
   const totalCollected = monthPayments.filter((p) => p.status === "paid").reduce((acc, p) => acc + p.amount, 0);
   const totalStudents = students.length;
   const paidCount = monthPayments.filter((p) => p.status === "paid").length;

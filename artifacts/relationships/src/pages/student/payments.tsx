@@ -18,7 +18,7 @@ import type { Payment, AppNotification } from "@/lib/types";
 import { formatCurrency, formatDate, formatMonth } from "@/lib/format";
 import { mcApi } from "@/lib/api-client";
 
-const SPP_AMOUNT = 350000;
+const SPP_AMOUNT = 60000;
 const PAYMENT_METHODS = [
   {
     value: "stor_koordinator",
