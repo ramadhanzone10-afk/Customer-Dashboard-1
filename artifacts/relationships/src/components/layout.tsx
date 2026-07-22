@@ -55,7 +55,7 @@ import { mcApi } from "@/lib/api-client";
 import type { AppNotification } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
-import logoUrl from "@assets/Logo_MathCourse_1777550046532.png";
+import logoUrl from "@assets/ChatGPT_Image_Jul_18,_2026,_06_36_36_AM_1784331431257.png";
 
 interface NavItem {
   path: string;
