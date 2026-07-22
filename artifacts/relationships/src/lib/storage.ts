@@ -11,7 +11,7 @@ import type {
   MaterialBankItem,
 } from "./types";
 
-const PREFIX = "mathclub:v1:";
+const PREFIX = "mathcore:v1:";
 
 type StoreMap = {
   users: User[];

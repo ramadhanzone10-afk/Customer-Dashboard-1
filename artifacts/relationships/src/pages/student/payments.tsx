@@ -30,7 +30,7 @@ const PAYMENT_METHODS = [
     value: "transfer",
     label: "Transfer Bank",
     icon: CreditCard,
-    desc: "Transfer ke rekening BCA 1234-5678-90 a.n. MathClub Indonesia.",
+    desc: "Transfer ke rekening BCA 1234-5678-90 a.n. Math Core Indonesia.",
   },
 ];
 
@@ -392,7 +392,7 @@ function PayDialog({
               {method === "transfer" && (
                 <div className="border rounded-lg p-3 bg-muted/50 text-sm">
                   <div className="font-semibold">BCA — 1234 5678 90</div>
-                  <div className="text-xs text-muted-foreground">a.n. MathClub Indonesia</div>
+                  <div className="text-xs text-muted-foreground">a.n. Math Core Indonesia</div>
                 </div>
               )}
               {method === "stor_koordinator" && (

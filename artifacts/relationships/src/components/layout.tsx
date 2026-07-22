@@ -238,7 +238,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   (n) =>
                     n.path === location ||
                     (n.path !== `/${user.role}` && location.startsWith(n.path)),
-                )?.label ?? "MathClub"}
+                )?.label ?? "Math Core"}
               </h1>
             </div>
             <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { write } from "./storage";
 import { mcApi } from "./api-client";
 
-const CLASSES_VERSION_KEY = "mathclub:v1:classes_version";
+const CLASSES_VERSION_KEY = "mathcore:v1:classes_version";
 const CLASSES_VERSION = "v3";
 
 const DEFAULT_CLASSES: string[] = [

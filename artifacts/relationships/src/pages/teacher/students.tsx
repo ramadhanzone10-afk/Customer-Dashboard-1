@@ -194,7 +194,7 @@ export default function TeacherStudents() {
     const notif: AppNotification = {
       id: uid("n_"), userId: s.id, type: "payment_due",
       title: "Akun Disetujui! 🎉",
-      message: "Selamat datang di MathClub! Akun Anda telah disetujui oleh guru. Silakan mulai belajar.",
+      message: "Selamat datang di Math Core! Akun Anda telah disetujui oleh guru. Silakan mulai belajar.",
       read: false, createdAt: Date.now(),
     };
     write("notifications", [...read("notifications", []), notif]);
@@ -774,7 +774,7 @@ function AddStudentDialog({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="siswa@mathclub.id"
+                placeholder="siswa@mathcore.id"
                 data-testid="input-new-student-email"
               />
             </div>
@@ -1184,10 +1184,10 @@ function slugify(name: string): string {
 
 function generateEmail(name: string, existing: string[]): string {
   const base = slugify(name) || "siswa";
-  let email = `${base}@mathclub.id`;
+  let email = `${base}@mathcore.id`;
   let i = 2;
   while (existing.includes(email)) {
-    email = `${base}${i}@mathclub.id`;
+    email = `${base}${i}@mathcore.id`;
     i++;
   }
   return email;

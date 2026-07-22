@@ -212,7 +212,7 @@ export default function TeacherPayments() {
     const phone = formatPhoneForWa(student.phone);
     if (!phone) return null;
     const text = encodeURIComponent(
-      `Halo ${student.name}, ini pengingat dari MathClub: pembayaran SPP bulan ${formatMonth(activeMonth)} sebesar ${formatCurrency(350000)} belum kami terima. Mohon segera melakukan pembayaran. Terima kasih.`,
+      `Halo ${student.name}, ini pengingat dari Math Core: pembayaran SPP bulan ${formatMonth(activeMonth)} sebesar ${formatCurrency(350000)} belum kami terima. Mohon segera melakukan pembayaran. Terima kasih.`,
     );
     return `https://wa.me/${phone}?text=${text}`;
   }
