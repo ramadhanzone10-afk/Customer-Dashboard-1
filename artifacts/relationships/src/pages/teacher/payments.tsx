@@ -71,9 +71,9 @@ export default function TeacherPayments() {
   const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const availableYears = Array.from(
-    { length: currentYear - 2023 },
+    { length: currentYear - 2022 },
     (_, i) => 2024 + i,
-  ).concat([currentYear, currentYear + 1]);
+  );
 
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const allYearMonths = getYearMonths(selectedYear);
