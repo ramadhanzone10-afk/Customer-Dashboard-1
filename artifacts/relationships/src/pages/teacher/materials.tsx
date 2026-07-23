@@ -27,6 +27,7 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { RichEditor } from "@/components/rich-editor";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Material, Exam, Question, User, AppNotification, ExamSubmission, QuestionBankItem, MaterialBankItem, ExamBankItem } from "@/lib/types";
@@ -1232,8 +1233,13 @@ function MaterialDialog({
           </div>
           <div><Label>Deskripsi</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ringkasan singkat" /></div>
           <div>
-            <Label>Konten {materialType === "soal" ? "(soal / pertanyaan)" : "(isi materi)"}</Label>
-            <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={10} placeholder={materialType === "soal" ? "Tulis soal-soal latihan di sini...\n\n1. ..." : "Tulis isi materi di sini..."} data-testid="input-material-content" />
+            <Label className="mb-1.5 block">Konten {materialType === "soal" ? "(soal / pertanyaan)" : "(isi materi)"}</Label>
+            <RichEditor
+              value={content}
+              onChange={setContent}
+              placeholder={materialType === "soal" ? "Tulis soal-soal latihan di sini..." : "Tulis isi materi di sini..."}
+              minHeight={280}
+            />
           </div>
           <div className="space-y-2">
             <Label>Media pendukung (opsional)</Label>
