@@ -52,10 +52,7 @@ export default function StudentPayments() {
   const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const currentYearMonths = getYearMonths(currentYear);
 
-  const availableYears = Array.from(
-    { length: currentYear - 2022 },
-    (_, i) => 2024 + i,
-  );
+  const availableYears = Array.from({ length: 2050 - 2024 + 1 }, (_, i) => 2024 + i);
 
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const allMonths = getYearMonths(selectedYear);
