@@ -12,6 +12,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useAuth, useStore } from "@/lib/auth";
 import { read, write, uid } from "@/lib/storage";
 import type { Payment, AppNotification } from "@/lib/types";
@@ -47,19 +50,27 @@ export default function StudentPayments() {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const allMonths = getYearMonths(currentYear);
+  const currentYearMonths = getYearMonths(currentYear);
+
+  const availableYears = Array.from(
+    { length: currentYear - 2023 },
+    (_, i) => 2024 + i,
+  ).concat([currentYear, currentYear + 1]);
+
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const allMonths = getYearMonths(selectedYear);
 
   const myPayments = useMemo(
     () => payments.filter((p) => p.userId === user!.id),
     [payments, user],
   );
 
-  // Auto-generate missing payment records for past + current months
+  // Auto-generate missing payment records for past + current months (always current year)
   useEffect(() => {
     if (!user) return;
     const existing = (read("payments", []) as Payment[]).filter((p: Payment) => p.userId === user.id);
     const existingMonths = new Set(existing.map((p) => p.month));
-    const missing = allMonths
+    const missing = currentYearMonths
       .filter((m) => m <= currentMonth && !existingMonths.has(m));
     if (missing.length === 0) return;
     const newPayments: Payment[] = missing.map((m) => ({
@@ -82,12 +93,19 @@ export default function StudentPayments() {
     return m;
   }, [myPayments]);
 
+  // Stats and alerts based on selected year
+  const yearPayments = useMemo(
+    () => myPayments.filter((p) => p.month.startsWith(String(selectedYear))),
+    [myPayments, selectedYear],
+  );
+
   const unpaidList = useMemo(
     () => myPayments.filter((p) => p.status === "unpaid"),
     [myPayments],
   );
   const totalDueAmount = unpaidList.reduce((acc, p) => acc + p.amount, 0);
-  const paidCount = myPayments.filter((p) => p.status === "paid").length;
+  const paidCount = yearPayments.filter((p) => p.status === "paid").length;
+  const yearUnpaidCount = yearPayments.filter((p) => p.status === "unpaid").length;
 
   return (
     <div className="space-y-6">
@@ -124,7 +142,7 @@ export default function StudentPayments() {
         <Card>
           <CardContent className="p-5">
             <div className="text-xs text-muted-foreground">Total Tagihan</div>
-            <div className="text-2xl font-bold mt-1">{myPayments.length}</div>
+            <div className="text-2xl font-bold mt-1">{yearPayments.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -136,7 +154,7 @@ export default function StudentPayments() {
         <Card>
           <CardContent className="p-5">
             <div className="text-xs text-muted-foreground">Belum Bayar</div>
-            <div className="text-2xl font-bold mt-1 text-destructive">{unpaidList.length}</div>
+            <div className="text-2xl font-bold mt-1 text-destructive">{yearUnpaidCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -144,7 +162,19 @@ export default function StudentPayments() {
       {/* Monthly grid Jan-Dec */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">SPP {currentYear} — Semua Bulan</CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <CardTitle className="text-base">SPP {selectedYear} — Semua Bulan</CardTitle>
+            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+              <SelectTrigger className="w-28" data-testid="select-year">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="divide-y">

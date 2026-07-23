@@ -69,7 +69,14 @@ export default function TeacherPayments() {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const allYearMonths = getYearMonths(currentYear);
+
+  const availableYears = Array.from(
+    { length: currentYear - 2023 },
+    (_, i) => 2024 + i,
+  ).concat([currentYear, currentYear + 1]);
+
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const allYearMonths = getYearMonths(selectedYear);
 
   // Only payments from teacher's own students
   const myPayments = useMemo(
@@ -84,6 +91,12 @@ export default function TeacherPayments() {
 
   const [activeMonth, setActiveMonth] = useState(currentMonth);
   const [kelasFilter, setKelasFilter] = useState<string>("all");
+
+  function handleYearChange(val: string) {
+    const y = Number(val);
+    setSelectedYear(y);
+    setActiveMonth(y === currentYear ? currentMonth : `${y}-01`);
+  }
   const [previewPayment, setPreviewPayment] = useState<Payment | null>(null);
 
   const monthPayments = useMemo(
@@ -263,14 +276,26 @@ export default function TeacherPayments() {
 
           <Tabs value={activeMonth} onValueChange={setActiveMonth}>
             <div className="flex flex-wrap items-center gap-3 justify-between">
-              <TabsList className="flex-wrap h-auto gap-1">
-                {months.map((m) => (
-                  <TabsTrigger key={m} value={m} data-testid={`tab-month-${m}`}
-                    className={m === currentMonth ? "data-[state=active]:ring-2 data-[state=active]:ring-primary" : ""}>
-                    {formatMonth(m).slice(0, 3)}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+                  <SelectTrigger className="w-28" data-testid="select-year">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableYears.map((y) => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <TabsList className="flex-wrap h-auto gap-1">
+                  {months.map((m) => (
+                    <TabsTrigger key={m} value={m} data-testid={`tab-month-${m}`}
+                      className={m === currentMonth ? "data-[state=active]:ring-2 data-[state=active]:ring-primary" : ""}>
+                      {formatMonth(m).slice(0, 3)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Filter kelas:</span>
                 <Select value={kelasFilter} onValueChange={setKelasFilter}>
