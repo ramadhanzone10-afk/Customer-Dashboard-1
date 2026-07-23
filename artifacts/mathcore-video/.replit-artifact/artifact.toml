@@ -1,0 +1,27 @@
+kind = "video"
+previewPath = "/mathcore-video/"
+title = "Math Core Promo Video"
+version = "1.0.0"
+id = "artifacts/mathcore-video"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/mathcore-video/" ]
+localPort = 20783
+
+[services.development]
+run = "pnpm --filter @workspace/mathcore-video run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mathcore-video", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/mathcore-video/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20783"
+BASE_PATH = "/mathcore-video/"
